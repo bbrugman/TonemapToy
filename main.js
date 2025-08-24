@@ -1,0 +1,288 @@
+import * as THREE from 'three';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+
+const UniformControlType = {
+    CHECKBOX: "CHECKBOX",
+    NUMBER: "NUMBER",
+    RANGE: "RANGE",
+    SELECT: "RADIO"
+};
+
+function parseUniformDefs(glsl) {
+    const result = [];
+
+    // strip comments
+    const glslStripped = glsl.replace(/\/\*.*?\*\//gs, "");
+
+    for (const line of glslStripped.split("\n")) {
+        const match = line.match(/^\s*uniform\s*(bool|float|int|uint)\s*(\w*)\s*;\s*(?:\/\/\s*(.*))?/);
+        if (match === null) continue;
+
+        const type = match[1];
+        const name = match[2];
+        const uniformData = {
+            name: name,
+            type: type,
+            control: (type === "bool") ? UniformControlType.CHECKBOX : UniformControlType.NUMBER
+        };
+
+        if (match[3] !== undefined) { // we have an option comment to parse
+            const options = match[3].split(/\s+/);
+            if (options.length > 0) {
+                const controlSpec = options[0];
+                if (controlSpec === "range" && type === "float") {
+                    uniformData.control = UniformControlType.RANGE
+                    uniformData.min = Number.parseFloat(options[1]);
+                    uniformData.max = Number.parseFloat(options[2]);
+                } else if (controlSpec === "choices" && options.length > 1 && (type === "int" || type === "uint")) {
+                    uniformData.control = UniformControlType.SELECT;
+                    uniformData.choices = options.slice(1);
+                }
+            }
+        }
+
+        result.push(uniformData);
+    }
+    return result;
+}
+
+document.addEventListener("DOMContentLoaded", (e) => {
+    const fileInput = document.getElementById("file-input");
+    const canvas = document.getElementsByTagName("canvas")[0];
+    const vsText = document.getElementById("vs").textContent.trim();
+    const fsText = document.getElementById("fs").textContent.trim();
+    const shaderInput = document.getElementById("user-shader");
+    const compileButton = document.getElementById("compile-shader");
+    const exposureInput = document.getElementById("exposure-input");
+    const uniformControls = document.getElementById("uniform-controls");
+
+    const gl = canvas.getContext('webgl2');
+
+    // vertex shader and geometry need only be set up once
+    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, vsText);
+    gl.compileShader(vertexShader);
+
+    const square = new Float32Array([
+        0.0, 0.0,
+        1.0, 0.0,
+        0.0, 1.0,
+        1.0, 1.0,
+    ]);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, square, gl.STATIC_DRAW);
+
+    // state
+    let program = null;
+    let fragmentShader = null;
+    let texture = null;
+    let userUniforms = null;
+    let imageAspectRatio = 1;
+
+    function updateShader() {
+        console.log("Updating shader...");
+        gl.deleteProgram(program);
+        gl.deleteShader(fragmentShader);
+
+        const userCode = shaderInput.value;
+        userUniforms = parseUniformDefs(userCode);
+        updateUniformUI();
+
+        fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        // insert user code into fragment shader
+        gl.shaderSource(fragmentShader, fsText.replace("// YOUR CODE GOES HERE", userCode));
+        gl.compileShader(fragmentShader);
+        if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+            alert("Fragment shader (your code starting at line 9) failed to compile:\n"
+                + gl.getShaderInfoLog(fragmentShader));
+            return;
+        }
+
+        program = gl.createProgram()
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            alert("Shader program failed to link:\n" + gl.getProgramInfoLog(program));
+            return;
+        }
+
+        console.log("Shader program compiled and linked succesfully.");
+        const posLoc = gl.getAttribLocation(program, '_pos');
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+        gl.useProgram(program);
+    }
+
+    function updateUniformUI() {
+        uniformControls.innerHTML = ""; // clear current controls
+
+        for (const [uniformIndex, uniform] of userUniforms.entries()) {
+            const id = "uniform-inp-" + uniformIndex;
+
+            const div = document.createElement("div");
+            div.className = "uniform-control";
+
+            // TODO: somehow allow specification of default values?
+            switch (uniform.control) {
+                case UniformControlType.CHECKBOX:
+                    {
+                        const input = document.createElement("input");
+                        input.setAttribute("type", "checkbox");
+                        input.setAttribute("id", id);
+                        div.appendChild(input);
+
+                        const label = document.createElement("label");
+                        label.setAttribute("for", id);
+                        label.appendChild(document.createTextNode(uniform.name));
+                        div.appendChild(label);
+
+                        uniform.valueGetter = () => (input.checked ? 1 : 0);
+                    }
+                    break;
+                case UniformControlType.NUMBER:
+                    {
+                        const label = document.createElement("label");
+                        label.setAttribute("for", id);
+                        label.appendChild(document.createTextNode(uniform.name));
+                        div.appendChild(label);
+
+                        const input = document.createElement("input");
+                        input.setAttribute("type", "number");
+                        input.setAttribute("id", id);
+                        input.value = "0";
+                        div.appendChild(input);
+
+                        uniform.valueGetter = () => parseFloat(input.value);
+                    }
+                    break;
+                case UniformControlType.RANGE:
+                    {
+                        const label = document.createElement("label");
+                        label.setAttribute("for", id);
+                        label.appendChild(document.createTextNode(uniform.name));
+                        div.appendChild(label);
+
+                        const input = document.createElement("input");
+                        input.setAttribute("type", "range");
+                        input.setAttribute("min", uniform.min);
+                        input.setAttribute("max", uniform.max);
+                        input.setAttribute("step", "any");
+                        input.setAttribute("id", id);
+                        input.value = (uniform.max + uniform.min) / 2;
+                        div.appendChild(input);
+
+                        const numInput = document.createElement("input");
+                        numInput.setAttribute("type", "number");
+                        numInput.value = input.value;
+                        div.appendChild(numInput);
+
+                        input.addEventListener("change", (e) => {
+                            numInput.value = input.value;
+                        });
+                        numInput.addEventListener("change", (e) => {
+                            input.value = numInput.value;
+                        });
+
+                        uniform.valueGetter = () => parseFloat(input.value);
+                    }
+                    break;
+                case UniformControlType.SELECT:
+                    {
+                        const label = document.createElement("label");
+                        label.setAttribute("for", id);
+                        label.appendChild(document.createTextNode(uniform.name));
+                        div.appendChild(label);
+
+                        const selector = document.createElement("select");
+                        selector.setAttribute("id", id);
+                        for (const [choiceIndex, choice] of uniform.choices.entries()) {
+                            const option = document.createElement("option");
+                            option.setAttribute("name", uniform.name);
+                            option.setAttribute("value", choiceIndex);
+                            option.appendChild(document.createTextNode(choice));
+                            selector.appendChild(option);
+                        }
+                        div.appendChild(selector);
+
+                        uniform.valueGetter = () => selector.selectedIndex;
+                    }
+                    break;
+            }
+
+            uniformControls.appendChild(div);
+        }
+    }
+
+    function updateImageFromEXRBuffer(buffer) {
+        gl.deleteTexture(texture);
+        const texData = new EXRLoader().parse(buffer);
+        texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        // TODO: take into account texData.type
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, texData.width, texData.height, 0, gl.RGBA, gl.HALF_FLOAT, texData.data);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        imageAspectRatio = texData.width / texData.height;
+        canvas.width = texData.width;
+        canvas.height = texData.height;
+        // When Safari and Firefox implement drawingBufferStorage,
+        // the sRGB IEOTF shader code can be removed and this used instead:
+        // gl.drawingBufferStorage(gl.SRGB8_ALPHA8, texData.width, texData.height);
+        gl.viewport(0, 0, texData.width, texData.height);
+    }
+
+    // main loop
+    function update() {
+        gl.uniform1f(gl.getUniformLocation(program, "_viewAspectRatio"), canvas.width / canvas.height);
+        gl.uniform1f(gl.getUniformLocation(program, "_imageAspectRatio"), imageAspectRatio);
+        gl.uniform1i(gl.getUniformLocation(program, "_tex"), 0);
+        gl.uniform1f(gl.getUniformLocation(program, "_exposure"), Math.pow(2, exposureInput.value));
+
+        for (const uniform of userUniforms) {
+            const uniformLoc = gl.getUniformLocation(program, uniform.name);
+            const uniformValue = uniform.valueGetter();
+            switch (uniform.type) {
+                case "bool":
+                case "int":
+                case "uint":
+                    gl.uniform1i(uniformLoc, uniformValue);
+                    break;
+                case "float":
+                    gl.uniform1f(uniformLoc, uniformValue);
+                    break;
+            }
+        }
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        requestAnimationFrame(update);
+    }
+
+    // UI listeners
+    compileButton.addEventListener("click", updateShader);
+    fileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            updateImageFromEXRBuffer(reader.result);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // initial setup
+    const fileLoader = new THREE.FileLoader();
+    fileLoader.responseType = "arraybuffer";
+    fileLoader.load("Shelf.exr", (data) => {
+        updateImageFromEXRBuffer(data);
+    });
+    updateShader();
+    requestAnimationFrame(update);
+});

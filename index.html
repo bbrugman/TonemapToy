@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Tonemapping GLSL shader sandbox">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TonemapToy</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+        }
+
+        body {
+            font-family: Consolas, monospace;
+            color: #ccc;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+        }
+
+        input,
+        select,
+        textarea {
+            color: white !important;
+            background: #333 !important;
+        }
+
+        input[type="number"] {
+            width: 7rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        h1 {
+            display: inline;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            background: radial-gradient(#ffffff, #e19e77 30%, #235e7d 80%);
+            background-clip: text;
+            color: transparent;
+            font-weight: bolder;
+            letter-spacing: 0.2rem;
+            text-align: center;
+        }
+
+        #layout {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+
+        #controls {
+            flex: 0 0 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-left: 1rem;
+
+            >*,
+            div {
+                display: block;
+                margin: 0 0 10px;
+            }
+
+            label,
+            input {
+                display: block;
+            }
+
+            input[type="checkbox"],
+            input[type="checkbox"]+label {
+                display: inline;
+                vertical-align: middle;
+            }
+
+            textarea {
+                white-space: pre;
+            }
+        }
+
+        #canvas-holder {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            /*width: auto;
+            height: auto;
+            object-fit: contain;*/
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</head>
+
+<body>
+    <header>
+        <h1>TonemapToy</h1>
+    </header>
+    <div id="layout">
+        <div id="controls">
+            <div><label for="file-input">EXR image file</label> <input type="file" id="file-input" /></div>
+            <div><label for="exposure-input">Exposure</label>
+                <input id="exposure-input" type="range" min="-10" max="15" step="0.1" value="0" />
+            </div>
+
+            <label for="user-shader">GLSL</label>
+            <textarea id="user-shader" name="user-shader" rows="15" cols="72">
+/*
+For the shader to work, you must provide a function called "tonemap", 
+taking linear Rec. 709 input (already scaled by exposure) as a vec3 
+and returning linear REc. 709 output as a vec3.
+
+Any uniform you specify will receive its own UI control, labeled by 
+the uniform name. Comments immediately after the uniform definition 
+may be used to customize the control, depending on the type.
+
+For floats, 
+// range <min> <max>
+creates a range input with the indicated bounds.
+
+For ints or uints,
+// choices <choice1> [choice2] [...]
+creates a selector, where the n-th option yields value n-1.
+
+This example shader shows off a few tonemappers and demonstrates what 
+is possible.
+*/
+
+uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx
+uniform int Approach; // choices Per-channel Value AgX Helium
+uniform float HD_Gamma; // range 0.1 5.0
+uniform float LogContrast; // range -3.0 3.0;
+uniform float AgX_RotateR; // range -0.99 0.99
+uniform float AgX_InsetR; // range 0.0 1.0
+uniform float AgX_RotateG; // range -0.99 0.99
+uniform float AgX_InsetG; // range 0.0 1.0
+uniform float AgX_RotateB; // range -0.99 0.99
+uniform float AgX_InsetB; // range 0.0 1.0
+uniform bool Helium_SoftScale;
+uniform bool ShowExtraClamp;
+
+#define saturate(x) clamp(x, 0.0, 1.0)
+#define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))
+
+float clampCurve(float x) {
+    return min(x, 1.0);
+}
+
+float exponentialCurve(float x) {
+    return 1.0 - exp(-x);
+}
+
+float perfectFilmCurve(float x) {
+    /*
+    This curve deserves more elaboration than fits here.
+    It's a "perfect film characteristic curve", derived from a formula
+    given by the inventors of film characteristic curves, Hurter & 
+    Driffield, in 1890(!). When plotted on the digital equivalent of 
+    such a chart, it has an infinite "linear portion" with slope 
+    proportional to the gamma parameter. For gamma=1, it reduces to 
+    the well-known curve from Reinhard (2002), who did not cite H&D.
+    */
+    return 1.0 - pow(1.0 + x/HD_Gamma, -HD_Gamma);
+}
+
+// Adapted from https://iolite-engine.com/blog_posts/minimal_agx_implementation
+float agxDefaultContrastApprox(float x) {
+    float x2 = x * x;
+    float x4 = x2 * x2;
+  
+    return + 15.5   * x4 * x2
+           - 40.14  * x4 * x
+           + 31.96  * x4
+           - 6.868  * x2 * x
+           + 0.4298 * x2
+           + 0.1191 * x
+           - 0.00232;
+}
+
+float agxCurve(float x) {
+    const float minE = -12.47393;
+    const float maxE = 4.026069;
+    x = clamp(log2(x), minE, maxE);
+    x = (x - minE) / (maxE - minE);
+    x = agxDefaultContrastApprox(x);
+    // AgX curve was tuned for sRGB already
+    return pow(x, 2.2); 
+}
+
+float luminance(vec3 linearRGB) {
+    // Assuming Rec. 709 primaries
+    const vec3 luminanceCoefs = vec3(0.2126, 0.7125, 0.0722);
+    return dot(luminanceCoefs, linearRGB);
+}
+
+vec3 rgbSweep(float hue) {
+    vec3 color = cos((hue - vec3(0.0, 1.0, 2.0)) * 3.141592 * 2.0 / 3.0);
+    float maxRGB = max(color.r, max(color.g, color.b));
+    float minRGB = min(color.r, min(color.g, color.b));
+  
+    return (color - minRGB) / (maxRGB - minRGB);
+}
+
+float selectedCurve(float x) {
+    if (Curve == 0) return clampCurve(x);
+    if (Curve == 1) return exponentialCurve(x);
+    if (Curve == 2) return perfectFilmCurve(x);
+    if (Curve == 3) return agxCurve(x);
+}
+
+vec3 tonemap(vec3 x) {
+    // Clamp out-of-gamut colors
+    x = max(x, 0.0); 
+
+    x = 0.5*pow(2.0*x, vec3(exp(LogContrast)));
+
+    if (Approach == 0) {
+        x = APPLY(x, selectedCurve);
+    } else if (Approach == 1) {
+        float maxVal = max(x.r, max(x.g, x.b));
+        float target = selectedCurve(maxVal);
+        x = x * (target / maxVal);
+    } else if (Approach == 2) {
+        const vec3 sum1Gray = vec3(1.0 / 3.0);
+
+        vec3 primaryR = mix(vec3(1.0 - abs(AgX_RotateR), max(0.0, -AgX_RotateR), max(0.0, AgX_RotateR)), sum1Gray, AgX_InsetR);
+        vec3 primaryG = mix(vec3(max(0.0, AgX_RotateG), 1.0 - abs(AgX_RotateG), max(0.0, -AgX_RotateG)), sum1Gray, AgX_InsetG);
+        vec3 primaryB = mix(vec3(max(0.0, -AgX_RotateB), max(0.0, AgX_RotateB), 1.0 - abs(AgX_RotateB)), sum1Gray, AgX_InsetB);
+
+        mat3 agxMatrix = transpose(mat3(primaryR, primaryG, primaryB));
+        mat3 agxMatrixInverse = inverse(agxMatrix);
+
+        x = agxMatrix * x;
+        x = APPLY(x, selectedCurve);
+        x = agxMatrixInverse * x;
+    } else if (Approach == 3) {
+        const vec3 white = vec3(1.0, 1.0, 1.0);
+
+        float lum = luminance(x);
+        float targetLum = selectedCurve(lum);
+
+        // Scale input to within the output cube
+        float maxVal = max(x.r, max(x.g, x.b));
+        float scale;
+        if (Helium_SoftScale) {
+            scale = selectedCurve(maxVal) / maxVal;
+        } else {
+            scale = min(targetLum / lum, min(1.0, maxVal) / maxVal);
+        }
+        vec3 scaled = scale * x;
+
+        // Calculate target luminance not accounted for by scaled input
+        float scaledLum = scale * lum;
+        float missingLum = targetLum - scaledLum;
+
+        // Move towards white for missing luminance
+        vec3 toWhite = white - scaled;
+        float toWhiteLum = 1.0 - scaledLum;
+        x = scaled + (missingLum/toWhiteLum)*toWhite;
+    }
+
+    if (ShowExtraClamp) {
+        if (min(x.r, min(x.g, x.b)) < -0.001 || max(x.r, max(x.g, x.b)) > 1.001) return vec3(1.0, 0.0, 1.0);
+    }
+
+    return x;
+}
+</textarea>
+            <button id="compile-shader">Compile</button>
+            <div id="uniform-controls"></div>
+        </div>
+        <div id="canvas-holder"><canvas></canvas></div>
+    </div>
+
+    <script id="vs" type="x-shader/vertex">
+#version 300 es
+in vec2 _pos;
+out vec2 _uv;
+uniform float _viewAspectRatio;
+uniform float _imageAspectRatio;
+
+void main() {
+    _uv = _pos;
+    vec2 aspectCorrectPos = 2.0 * vec2(_imageAspectRatio / _viewAspectRatio * (_pos.x-0.5), (_pos.y-0.5));
+    gl_Position = vec4(aspectCorrectPos, 0, 1);
+}
+    </script>
+    <script id="fs" type="x-shader/fragment">
+#version 300 es
+precision mediump float;
+
+in vec2 _uv;
+out vec4 _outputColor;
+uniform sampler2D _tex;
+uniform float _exposure;
+
+// YOUR CODE GOES HERE
+
+vec3 _sRgbIeotf(vec3 x) {
+    return mix(
+        1.055 * pow(x, vec3(1.0 / 2.4)) - 0.055,
+        12.92 * x,
+        vec3(lessThan(x, vec3(0.0031308)))
+    );
+}
+
+void main() {
+    vec3 texColor = texture(_tex, _uv).rgb;
+    vec3 tonemapped = tonemap(_exposure*texColor);
+    _outputColor = vec4(_sRgbIeotf(clamp(tonemapped, 0.0, 1.0)), 1.0);
+}
+    </script>
+</body>
+
+</html>
