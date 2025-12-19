@@ -16,13 +16,24 @@ Any uniform you specify will receive its own UI control, labeled by
 the uniform name. Comments immediately after the uniform definition 
 may be used to customize the control, depending on the type.
 
-For floats, 
-// range <min> <max>
-creates a range input with the indicated bounds.
-
 For ints or uints,
 // choices <choice1> [choice2] [...]
 creates a selector, where the n-th option yields value n-1.
+The first option will be selected by default.
+
+For floats, 
+// range min=<min> max=<max>
+creates a range input with the indicated bounds.
+
+To specify a default value (except for selectors),
+specify the "default=" option, e.g.
+// range min=0 max=10 default=3.14
+
+Booleans are true by default, but
+// default=0
+// default=false
+// default=no
+all change the default value to false.
 
 This example shader shows off a few tonemappers and demonstrates what 
 is possible.
@@ -30,16 +41,16 @@ is possible.
 
 uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx
 uniform int Approach; // choices Per-channel Value AgX Helium
-uniform float HD_Gamma; // range 0.1 5.0
-uniform float LogContrast; // range -3.0 3.0;
-uniform float AgX_RotateR; // range -0.99 0.99
-uniform float AgX_InsetR; // range 0.0 1.0
-uniform float AgX_RotateG; // range -0.99 0.99
-uniform float AgX_InsetG; // range 0.0 1.0
-uniform float AgX_RotateB; // range -0.99 0.99
-uniform float AgX_InsetB; // range 0.0 1.0
-uniform bool Helium_SoftScale;
-uniform bool ShowExtraClamp;
+uniform float HD_Gamma; // range min=0.1 max=10.0 default=1.0
+uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
+uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.0
+uniform float AgX_InsetR; // range min=0.0 max=1.0
+uniform float AgX_RotateG; // range min=-0.99 max=0.99
+uniform float AgX_InsetG; // range min=0.0 max=1.0
+uniform float AgX_RotateB; // range min=-0.99 max=0.99
+uniform float AgX_InsetB; // range min=0.0 max=1.0
+uniform bool Helium_SoftScale; // default=1
+uniform bool ShowExtraClamp; // default=0
 
 #define saturate(x) clamp(x, 0.0, 1.0)
 #define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))

@@ -27,17 +27,39 @@ function parseUniformDefs(glsl) {
             control: (type === "bool") ? UniformControlType.CHECKBOX : UniformControlType.NUMBER
         };
 
-        if (match[3] !== undefined) { // we have an option comment to parse
-            const options = match[3].split(/\s+/);
-            if (options.length > 0) {
-                const controlSpec = options[0];
-                if (controlSpec === "range" && type === "float") {
-                    uniformData.control = UniformControlType.RANGE
-                    uniformData.min = Number.parseFloat(options[1]);
-                    uniformData.max = Number.parseFloat(options[2]);
-                } else if (controlSpec === "choices" && options.length > 1 && (type === "int" || type === "uint")) {
-                    uniformData.control = UniformControlType.SELECT;
-                    uniformData.choices = options.slice(1);
+        const optionComment = match[3]
+        if (optionComment !== undefined) { // we have an option comment to parse
+            const options = optionComment.split(/\s+/);
+
+            // assume either a "choices" option, "choices <choice1> <choice2> ..."
+            if (options[0] === "choices" && options.length > 1 && (type === "int" || type === "uint")) {
+                uniformData.control = UniformControlType.SELECT;
+                uniformData.choices = options.slice(1);
+            } else { // ...or, options parseable in any order
+                for (const option of options) {
+                    if (option === "range" && type === "float") {
+                        uniformData.control = UniformControlType.RANGE;
+                    }
+                    else if (option.startsWith("min=")) {
+                        uniformData.min = Number.parseFloat(option.slice("min=".length));
+                    }
+                    else if (option.startsWith("max=")) {
+                        uniformData.max = Number.parseFloat(option.slice("max=".length));
+                    }
+                    else if (option.startsWith("default=")) {
+                        if (uniformData.control === UniformControlType.CHECKBOX) {
+                            // ^ If a later option could change the control type, we couldn't get away with this.
+                            // Here, we're OK because there's no option that changes the control type for booleans.
+
+                            // checkbox "checked" property is boolean in DOM API
+                            uniformData.defaultValue = !option.slice("default=".length).match(/(false|no|0)/i);
+                        } else {
+                            // Other <input> values are strings.
+                            // Maybe we'd want to not couple to DOM API specifics here.
+                            // But the alternative in this case is pointless parsing and re-stringifying, so....
+                            uniformData.defaultValue = option.slice("default=".length);
+                        }
+                    }
                 }
             }
         }
@@ -127,7 +149,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
             const div = document.createElement("div");
             div.className = "uniform-control";
 
-            // TODO: somehow allow specification of default values?
             switch (uniform.control) {
                 case UniformControlType.CHECKBOX:
                     {
@@ -140,6 +161,12 @@ document.addEventListener("DOMContentLoaded", (e) => {
                         label.setAttribute("for", id);
                         label.appendChild(document.createTextNode(uniform.name));
                         div.appendChild(label);
+
+                        if ("defaultValue" in uniform) {
+                            input.checked = uniform.defaultValue;
+                        } else {
+                            input.checked = true;
+                        }
 
                         uniform.valueGetter = () => (input.checked ? 1 : 0);
                     }
@@ -157,6 +184,12 @@ document.addEventListener("DOMContentLoaded", (e) => {
                         input.value = "0";
                         div.appendChild(input);
 
+                        if ("defaultValue" in uniform) {
+                            input.value = uniform.defaultValue;
+                        } else {
+                            input.value = "0";
+                        }
+
                         uniform.valueGetter = () => parseFloat(input.value);
                     }
                     break;
@@ -173,9 +206,14 @@ document.addEventListener("DOMContentLoaded", (e) => {
                         input.setAttribute("max", uniform.max);
                         input.setAttribute("step", "any");
                         input.setAttribute("id", id);
-                        input.value = (uniform.max + uniform.min) / 2;
                         div.appendChild(input);
 
+                        if ("defaultValue" in uniform) {
+                            input.value = uniform.defaultValue;
+                        } else {
+                            input.value = (uniform.max + uniform.min) / 2;
+                        }
+                        
                         const numInput = document.createElement("input");
                         numInput.setAttribute("type", "number");
                         numInput.value = input.value;
