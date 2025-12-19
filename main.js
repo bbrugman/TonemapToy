@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import shaderPresets from './shaderPresets.js';
 
 const UniformControlType = {
     CHECKBOX: "CHECKBOX",
@@ -51,6 +52,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const canvas = document.getElementsByTagName("canvas")[0];
     const vsText = document.getElementById("vs").textContent.trim();
     const fsText = document.getElementById("fs").textContent.trim();
+    const presetSelect = document.getElementById("preset-select");
     const shaderInput = document.getElementById("user-shader");
     const compileButton = document.getElementById("compile-shader");
     const exposureInput = document.getElementById("exposure-input");
@@ -198,9 +200,9 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
                         const selector = document.createElement("select");
                         selector.setAttribute("id", id);
+                        selector.setAttribute("name", uniform.name);
                         for (const [choiceIndex, choice] of uniform.choices.entries()) {
                             const option = document.createElement("option");
-                            option.setAttribute("name", uniform.name);
                             option.setAttribute("value", choiceIndex);
                             option.appendChild(document.createTextNode(choice));
                             selector.appendChild(option);
@@ -277,12 +279,29 @@ document.addEventListener("DOMContentLoaded", (e) => {
         reader.readAsArrayBuffer(file);
     });
 
+    // preset options
+    for (const key of Object.keys(shaderPresets)) {
+        const option = document.createElement("option");
+        option.setAttribute("value", key);
+        option.appendChild(document.createTextNode(key));
+        presetSelect.appendChild(option);
+    }
+
+    presetSelect.addEventListener("change", (e) => {
+        shaderInput.value = shaderPresets[presetSelect.value];
+        updateShader();
+    })
+
     // initial setup
     const fileLoader = new THREE.FileLoader();
     fileLoader.responseType = "arraybuffer";
     fileLoader.load("Shelf.exr", (data) => {
         updateImageFromEXRBuffer(data);
     });
+
+    const initialPreset = "Multi";
+    presetSelect.value = initialPreset;
+    shaderInput.value = shaderPresets[initialPreset];
     updateShader();
     requestAnimationFrame(update);
 });
