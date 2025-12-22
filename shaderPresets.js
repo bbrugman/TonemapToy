@@ -41,14 +41,15 @@ This example shader shows off a few tonemappers and demonstrates what
 is possible.
 */
 
-uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx
-uniform int Approach; // choices Per-channel Value AgX Helium
+uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx Hable
+uniform int Approach; // choices Per-channel Value Luminance AgX Helium
 uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
+uniform float HableWhitePoint; // logrange min=1.0 max=100.0 default=11.2
 uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.0
 uniform float AgX_InsetR; // range min=0.0 max=1.0
 uniform float AgX_RotateG; // range min=-0.99 max=0.99
-uniform float AgX_InsetG; // range min=0.0 max=1.0
+uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.65
 uniform float AgX_RotateB; // range min=-0.99 max=0.99
 uniform float AgX_InsetB; // range min=0.0 max=1.0
 uniform bool Helium_SoftScale; // default=1
@@ -102,6 +103,26 @@ float agxCurve(float x) {
     return pow(x, 2.2); 
 }
 
+// Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
+float hableCurve(float x) {
+    float A = 0.15;
+    float B = 0.50;
+    float C = 0.10;
+    float D = 0.20;
+    float E = 0.02;
+    float F = 0.30;
+    float W = HableWhitePoint;
+
+    float mappedWhite = ((W*(A*W+C*B)+D*E)/(W*(A*W+B)+D*F))-E/F;
+
+    // Adjust exposure to set curve derivative at zero to one
+    float deriv0 = (B*(C*F-E)/(D*F*F)) / mappedWhite;
+    x /= deriv0;
+
+    float mapped = ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+    return min(1.0, mapped / mappedWhite);
+}
+
 float luminance(vec3 linearRGB) {
     // Assuming Rec. 709 primaries
     const vec3 luminanceCoefs = vec3(0.2126, 0.7125, 0.0722);
@@ -121,6 +142,7 @@ float selectedCurve(float x) {
     if (Curve == 1) return exponentialCurve(x);
     if (Curve == 2) return perfectFilmCurve(x);
     if (Curve == 3) return agxCurve(x);
+    if (Curve == 4) return hableCurve(x);
 }
 
 vec3 tonemap(vec3 x) {
@@ -136,6 +158,10 @@ vec3 tonemap(vec3 x) {
         float target = selectedCurve(maxVal);
         x = x * (target / maxVal);
     } else if (Approach == 2) {
+        float lum = luminance(x);
+        float targetLum = selectedCurve(lum);
+        x = x * (targetLum / lum); 
+    } else if (Approach == 3) {
         const vec3 sum1Gray = vec3(1.0 / 3.0);
 
         vec3 primaryR = mix(vec3(1.0 - abs(AgX_RotateR), max(0.0, -AgX_RotateR), max(0.0, AgX_RotateR)), sum1Gray, AgX_InsetR);
@@ -148,7 +174,7 @@ vec3 tonemap(vec3 x) {
         x = agxMatrix * x;
         x = APPLY(x, selectedCurve);
         x = agxMatrixInverse * x;
-    } else if (Approach == 3) {
+    } else if (Approach == 4) {
         const vec3 white = vec3(1.0, 1.0, 1.0);
 
         float lum = luminance(x);
