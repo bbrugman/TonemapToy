@@ -23,6 +23,8 @@ The first option will be selected by default.
 
 For floats, 
 // range min=<min> max=<max>
+or
+// logrange min=<min> max=<max>
 creates a range input with the indicated bounds.
 
 To specify a default value (except for selectors),
@@ -41,7 +43,7 @@ is possible.
 
 uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx
 uniform int Approach; // choices Per-channel Value AgX Helium
-uniform float HD_Gamma; // range min=0.1 max=10.0 default=1.0
+uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
 uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.0
 uniform float AgX_InsetR; // range min=0.0 max=1.0

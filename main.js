@@ -37,8 +37,9 @@ function parseUniformDefs(glsl) {
                 uniformData.choices = options.slice(1);
             } else { // ...or, options parseable in any order
                 for (const option of options) {
-                    if (option === "range" && type === "float") {
+                    if ((option === "range" || option === "logrange") && type === "float") {
                         uniformData.control = UniformControlType.RANGE;
+                        uniformData.logarithmic = (option === "logrange");
                     }
                     else if (option.startsWith("min=")) {
                         uniformData.min = Number.parseFloat(option.slice("min=".length));
@@ -202,31 +203,52 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
                         const input = document.createElement("input");
                         input.setAttribute("type", "range");
-                        input.setAttribute("min", uniform.min);
-                        input.setAttribute("max", uniform.max);
                         input.setAttribute("step", "any");
                         input.setAttribute("id", id);
                         div.appendChild(input);
-
-                        if ("defaultValue" in uniform) {
-                            input.value = uniform.defaultValue;
-                        } else {
-                            input.value = (uniform.max + uniform.min) / 2;
-                        }
                         
                         const numInput = document.createElement("input");
                         numInput.setAttribute("type", "number");
-                        numInput.value = input.value;
+                        
                         div.appendChild(numInput);
 
-                        input.addEventListener("change", (e) => {
+                        if (uniform.logarithmic) {
+                            if ("defaultValue" in uniform) {
+                                input.value = Math.log(uniform.defaultValue);
+                            } else {
+                                input.value = Math.sqrt(Math.log(uniform.max) * Math.log(uniform.min));
+                            }
+                            numInput.value = Math.exp(input.value);
+    
+                            input.setAttribute("min", Math.log(uniform.min));
+                            input.setAttribute("max", Math.log(uniform.max));
+                            input.addEventListener("change", (e) => {
+                                numInput.value = Math.exp(input.value);
+                            });
+                            numInput.addEventListener("change", (e) => {
+                                input.value = Math.log(numInput.value);
+                            });
+    
+                            uniform.valueGetter = () => Math.exp(parseFloat(input.value));
+                        } else {
+                            if ("defaultValue" in uniform) {
+                                input.value = uniform.defaultValue;
+                            } else {
+                                input.value = (uniform.max + uniform.min) / 2;
+                            }
                             numInput.value = input.value;
-                        });
-                        numInput.addEventListener("change", (e) => {
-                            input.value = numInput.value;
-                        });
 
-                        uniform.valueGetter = () => parseFloat(input.value);
+                            input.setAttribute("min", uniform.min);
+                            input.setAttribute("max", uniform.max);
+                            input.addEventListener("change", (e) => {
+                                numInput.value = input.value;
+                            });
+                            numInput.addEventListener("change", (e) => {
+                                input.value = numInput.value;
+                            });
+    
+                            uniform.valueGetter = () => parseFloat(input.value);
+                        }
                     }
                     break;
                 case UniformControlType.SELECT:
