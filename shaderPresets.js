@@ -46,12 +46,12 @@ uniform int Approach; // choices Per-channel Value Luminance AgX Helium
 uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
 uniform float HableWhitePoint; // logrange min=1.0 max=100.0 default=11.2
 uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
-uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.0
-uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.12
-uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=0.0
-uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.24
-uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.0
-uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.24
+uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
+uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
+uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
+uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.127
+uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
+uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
 uniform bool Helium_SoftScale; // default=1
 uniform bool ShowExtraClamp; // default=0
 
