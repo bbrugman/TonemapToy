@@ -213,6 +213,9 @@ document.addEventListener("DOMContentLoaded", (e) => {
                         div.appendChild(numInput);
 
                         if (uniform.logarithmic) {
+                            input.setAttribute("min", Math.log(uniform.min));
+                            input.setAttribute("max", Math.log(uniform.max));
+
                             if ("defaultValue" in uniform) {
                                 input.value = Math.log(uniform.defaultValue);
                             } else {
@@ -220,8 +223,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             }
                             numInput.value = Math.exp(input.value);
     
-                            input.setAttribute("min", Math.log(uniform.min));
-                            input.setAttribute("max", Math.log(uniform.max));
                             input.addEventListener("change", (e) => {
                                 numInput.value = Math.exp(input.value);
                             });
@@ -231,6 +232,9 @@ document.addEventListener("DOMContentLoaded", (e) => {
     
                             uniform.valueGetter = () => Math.exp(parseFloat(input.value));
                         } else {
+                            input.setAttribute("min", uniform.min);
+                            input.setAttribute("max", uniform.max);
+                            
                             if ("defaultValue" in uniform) {
                                 input.value = uniform.defaultValue;
                             } else {
@@ -238,8 +242,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             }
                             numInput.value = input.value;
 
-                            input.setAttribute("min", uniform.min);
-                            input.setAttribute("max", uniform.max);
                             input.addEventListener("change", (e) => {
                                 numInput.value = input.value;
                             });
