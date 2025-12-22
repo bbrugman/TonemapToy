@@ -41,7 +41,7 @@ This example shader shows off a few tonemappers and demonstrates what
 is possible.
 */
 
-uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) AgX_Approx Hable
+uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) Hable
 uniform int Approach; // choices Per-channel Value Luminance AgX Helium
 uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
 uniform float HableWhitePoint; // logrange min=1.0 max=100.0 default=11.2
@@ -66,41 +66,17 @@ float exponentialCurve(float x) {
     return 1.0 - exp(-x);
 }
 
-float perfectFilmCurve(float x) {
+float idealFilmCurve(float x) {
     /*
     This curve deserves more elaboration than fits here.
-    It's a "perfect film characteristic curve", derived from a formula
-    given by the inventors of film characteristic curves, Hurter & 
-    Driffield, in 1890(!). When plotted on the digital equivalent of 
-    such a chart, it has an infinite "linear portion" with slope 
-    proportional to the gamma parameter. For gamma=1, it reduces to 
-    the well-known curve from Reinhard (2002), who did not cite H&D.
+    It's derived from a formula given by the inventors of film 
+    characteristic curves, Hurter & Driffield, in 1890(!).
+    When plotted on the digital equivalent of such a chart, it 
+    has an infinite "linear portion" with slope proportional to
+    the gamma parameter. For gamma=1, it reduces to the well-
+    known curve from Reinhard (2002), who did not cite H&D.
     */
     return 1.0 - pow(1.0 + x/HD_Gamma, -HD_Gamma);
-}
-
-// Adapted from https://iolite-engine.com/blog_posts/minimal_agx_implementation
-float agxDefaultContrastApprox(float x) {
-    float x2 = x * x;
-    float x4 = x2 * x2;
-  
-    return + 15.5   * x4 * x2
-           - 40.14  * x4 * x
-           + 31.96  * x4
-           - 6.868  * x2 * x
-           + 0.4298 * x2
-           + 0.1191 * x
-           - 0.00232;
-}
-
-float agxCurve(float x) {
-    const float minE = -12.47393;
-    const float maxE = 4.026069;
-    x = clamp(log2(x), minE, maxE);
-    x = (x - minE) / (maxE - minE);
-    x = agxDefaultContrastApprox(x);
-    // AgX curve was tuned for sRGB already
-    return pow(x, 2.2); 
 }
 
 // Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
@@ -140,9 +116,8 @@ vec3 rgbSweep(float hue) {
 float selectedCurve(float x) {
     if (Curve == 0) return clampCurve(x);
     if (Curve == 1) return exponentialCurve(x);
-    if (Curve == 2) return perfectFilmCurve(x);
-    if (Curve == 3) return agxCurve(x);
-    if (Curve == 4) return hableCurve(x);
+    if (Curve == 2) return idealFilmCurve(x);
+    if (Curve == 3) return hableCurve(x);
 }
 
 vec3 tonemap(vec3 x) {
@@ -162,6 +137,17 @@ vec3 tonemap(vec3 x) {
         float targetLum = selectedCurve(lum);
         x = x * (targetLum / lum); 
     } else if (Approach == 3) {
+        /*
+        For some reason, many seem to think of "AgX" as "the specific curve and
+        3x3 matrix Troy Sobotka came up with", which is remarkable in light of his
+        comments at https://github.com/sobotka/AgX-S2O3.
+        "[...] the curve formula employed [...] is detached from the more important mechanisms [...]"
+        "[...] no degree of "precision" [in the curve] can afford much utility."
+        "Any attempt to harness the ideas within this archive should expose [the] rotation and inset parameters."
+
+        The parameterization here is not quite the same as in the original AgX,
+        mostly for performance reasons, but should be similar in spirit.
+        */
         const vec3 sum1Gray = vec3(1.0 / 3.0);
 
         vec3 primaryR = mix(vec3(1.0 - abs(AgX_RotateR), max(0.0, -AgX_RotateR), max(0.0, AgX_RotateR)), sum1Gray, AgX_InsetR);
