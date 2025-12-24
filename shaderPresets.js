@@ -41,10 +41,14 @@ This example shader shows off a few tonemappers and demonstrates what
 is possible.
 */
 
-uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) Hable
+uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) Hable LogToeStraightShoulder
 uniform int Approach; // choices Per-channel Value Luminance AgX Helium
 uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
-uniform float HableWhitePoint; // logrange min=1.0 max=100.0 default=11.2
+uniform float Hable_WhitePoint; // logrange min=1.0 max=100.0 default=11.2
+uniform float LTSS_StraightStartX; // logrange min=0.01 max=100.0 default=0.5
+uniform float LTSS_StraightEndX; // logrange min=00.1 max=100.0 default=3.0
+uniform float LTSS_StraightStartY; // range min=0.0 max=1.0 default=0.3
+uniform float LTSS_StraightEndY; // range min=0.0 max=1.0 default=0.8
 uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
@@ -87,7 +91,7 @@ float hableCurve(float x) {
     float D = 0.20;
     float E = 0.02;
     float F = 0.30;
-    float W = HableWhitePoint;
+    float W = Hable_WhitePoint;
 
     float mappedWhite = ((W*(A*W+C*B)+D*E)/(W*(A*W+B)+D*F))-E/F;
 
@@ -97,6 +101,22 @@ float hableCurve(float x) {
 
     float mapped = ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
     return min(1.0, mapped / mappedWhite);
+}
+
+float logToeStraightShoulder(float x) {
+    // todo: reparametrize as ToeCoef, StraightSlope, 
+    float logX = log(x);
+    float logStartX = log(LTSS_StraightStartX);
+    float logEndX = log(LTSS_StraightEndX);
+
+    float straightSlope = (LTSS_StraightEndY - LTSS_StraightStartY) / (logEndX - logStartX);
+    if (x < LTSS_StraightStartX) {
+        return LTSS_StraightStartY * exp((straightSlope / LTSS_StraightStartY) * (logX - logStartX));
+    }
+    if (x > LTSS_StraightEndX) {
+        return 1.0 - (1.0 - LTSS_StraightEndY) * exp((straightSlope / (1.0 - LTSS_StraightEndY)) * (-logX + logEndX));
+    }
+    return LTSS_StraightStartY + straightSlope * (logX - logStartX);
 }
 
 float luminance(vec3 linearRGB) {
@@ -118,6 +138,7 @@ float selectedCurve(float x) {
     if (Curve == 1) return exponentialCurve(x);
     if (Curve == 2) return idealFilmCurve(x);
     if (Curve == 3) return hableCurve(x);
+    if (Curve == 4) return logToeStraightShoulder(x);
 }
 
 vec3 tonemap(vec3 x) {
