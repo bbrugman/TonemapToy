@@ -1,6 +1,6 @@
 # TonemapToy
 
-TonemapToy is a simple web-based tool for testing GLSL-based local tonemappers.
+TonemapToy is a simple web-based tool for testing GLSL-based global tonemappers.
 
 Inspired by but not affiliated with ShaderToy.
 
