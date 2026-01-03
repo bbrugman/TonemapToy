@@ -56,7 +56,8 @@ uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
 uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.127
 uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
-uniform bool Helium_SoftScale; // default=1
+uniform bool Helium_SmoothScale; // default=1
+uniform bool Helium_AbneyComp; // default=1
 uniform bool ShowExtraClamp; // default=0
 
 #define saturate(x) clamp(x, 0.0, 1.0)
@@ -190,7 +191,7 @@ vec3 tonemap(vec3 x) {
         // Scale input to within the output cube
         float maxVal = max(x.r, max(x.g, x.b));
         float scale;
-        if (Helium_SoftScale) {
+        if (Helium_SmoothScale) {
             scale = selectedCurve(maxVal) / maxVal;
         } else {
             scale = min(targetLum / lum, min(1.0, maxVal) / maxVal);
@@ -200,11 +201,26 @@ vec3 tonemap(vec3 x) {
         // Calculate target luminance not accounted for by scaled input
         float scaledLum = scale * lum;
         float missingLum = targetLum - scaledLum;
-
-        // Move towards white for missing luminance
         vec3 toWhite = white - scaled;
         float toWhiteLum = 1.0 - scaledLum;
-        x = scaled + (missingLum/toWhiteLum)*toWhite;
+
+        if (Helium_AbneyComp) {
+            // ad hoc Abney effect compensation
+            vec3 abneyComp = vec3(
+                0.0,
+                0.15 * scaled.r * pow(1.0 - scaled.b, 4.0) + 0.35 * scaled.b * pow(1.0 - scaled.r, 5.0),
+                0.0
+            );
+            scaled = scaled + abneyComp * pow(missingLum / toWhiteLum + 0.0001, 0.6) * toWhite;
+            // Recalculate luminance unaccounted for
+            scaledLum = luminance(scaled);
+            missingLum = targetLum - scaledLum;
+            toWhite = white - scaled;
+            toWhiteLum = 1.0 - scaledLum;
+        }
+
+        // Move towards white for missing luminance
+        x = scaled + (missingLum / toWhiteLum) * toWhite;
     }
 
     if (ShowExtraClamp) {
