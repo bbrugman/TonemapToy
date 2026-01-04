@@ -208,10 +208,11 @@ vec3 tonemap(vec3 x) {
             // ad hoc Abney effect compensation
             vec3 abneyComp = vec3(
                 0.0,
-                0.15 * scaled.r * pow(1.0 - scaled.b, 4.0) + 0.35 * scaled.b * pow(1.0 - scaled.r, 5.0),
+                0.35 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
+                + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
                 0.0
             );
-            scaled = scaled + abneyComp * pow(missingLum / toWhiteLum + 0.0001, 0.6) * toWhite;
+            scaled = scaled + abneyComp * (missingLum / toWhiteLum) * toWhite;
             // Recalculate luminance unaccounted for
             scaledLum = luminance(scaled);
             missingLum = targetLum - scaledLum;
