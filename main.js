@@ -110,9 +110,18 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.deleteProgram(program);
         gl.deleteShader(fragmentShader);
 
+        // current uniform data to restore for uniforms whose name and type doesn't change
+        const prevUniformData = {};
+        for (const userUniform of userUniforms || []) {
+            prevUniformData[userUniform.name] = {
+                type: userUniform.type,
+                value: userUniform.valueGetter()
+            }
+        }
+
         const userCode = shaderInput.value;
         userUniforms = parseUniformDefs(userCode);
-        updateUniformUI();
+        updateUniformUI(prevUniformData);
 
         fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
         // insert user code into fragment shader
@@ -141,10 +150,17 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.useProgram(program);
     }
 
-    function updateUniformUI() {
+    function updateUniformUI(prevUniformData) {
         uniformControls.innerHTML = ""; // clear current controls
 
         for (const [uniformIndex, uniform] of userUniforms.entries()) {
+
+            let prevValue = null;
+            if (uniform.name in prevUniformData && uniform.type == prevUniformData[uniform.name].type) {
+                // restore this value if possible
+                prevValue = prevUniformData[uniform.name].value;
+            }
+
             const id = "uniform-inp-" + uniformIndex;
 
             const div = document.createElement("div");
@@ -169,6 +185,10 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             input.checked = true;
                         }
 
+                        if (prevValue !== null) {
+                            input.checked = (prevValue === 1);
+                        }
+
                         uniform.valueGetter = () => (input.checked ? 1 : 0);
                     }
                     break;
@@ -189,6 +209,10 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             input.value = uniform.defaultValue;
                         } else {
                             input.value = "0";
+                        }
+
+                        if (prevValue !== null) {
+                            input.value = prevValue;
                         }
 
                         uniform.valueGetter = () => parseFloat(input.value);
@@ -221,6 +245,11 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             } else {
                                 input.value = Math.sqrt(Math.log(uniform.max) * Math.log(uniform.min));
                             }
+
+                            if (prevValue !== null && prevValue >= uniform.min && prevValue <= uniform.max) {
+                                input.value = Math.log(prevValue);
+                            }
+
                             numInput.value = Math.exp(input.value);
     
                             input.addEventListener("change", (e) => {
@@ -240,6 +269,11 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             } else {
                                 input.value = (uniform.max + uniform.min) / 2;
                             }
+
+                            if (prevValue !== null && prevValue >= uniform.min && prevValue <= uniform.max) {
+                                input.value = prevValue;
+                            }
+
                             numInput.value = input.value;
 
                             input.addEventListener("change", (e) => {
@@ -270,6 +304,10 @@ document.addEventListener("DOMContentLoaded", (e) => {
                             selector.appendChild(option);
                         }
                         div.appendChild(selector);
+
+                        if (prevValue !== null && prevValue < uniform.choices.length) {
+                            selector.selectedIndex = prevValue;
+                        }
 
                         uniform.valueGetter = () => selector.selectedIndex;
                     }
