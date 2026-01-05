@@ -104,7 +104,6 @@ float hableCurve(float x) {
 }
 
 float logToeStraightShoulder(float x) {
-    // todo: reparametrize as ToeCoef, StraightSlope, 
     float logX = log(x);
     float logStartX = log(LTSS_StraightStartX);
     float logEndX = log(LTSS_StraightEndX);
