@@ -41,6 +41,7 @@ This example shader shows off a few tonemappers and demonstrates what
 is possible.
 */
 
+uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
 uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) Hable LogToeStraightShoulder
 uniform int Approach; // choices Per-channel Value Luminance AgX Helium
 uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
@@ -49,7 +50,6 @@ uniform float LTSS_StraightStartX; // logrange min=0.01 max=100.0 default=0.5
 uniform float LTSS_StraightEndX; // logrange min=00.1 max=100.0 default=3.0
 uniform float LTSS_StraightStartY; // range min=0.0 max=1.0 default=0.3
 uniform float LTSS_StraightEndY; // range min=0.0 max=1.0 default=0.8
-uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
 uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
@@ -58,7 +58,6 @@ uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
 uniform bool Helium_SmoothScale; // default=1
 uniform bool Helium_AbneyComp; // default=1
-uniform bool ShowExtraClamp; // default=0
 
 #define saturate(x) clamp(x, 0.0, 1.0)
 #define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))
@@ -143,8 +142,6 @@ float selectedCurve(float x) {
 }
 
 vec3 tonemap(vec3 x) {
-    // Clamp out-of-gamut colors
-    x = max(x, 0.0); 
 
     x = 0.5*pow(2.0*x, vec3(exp(LogContrast)));
 
@@ -223,11 +220,6 @@ vec3 tonemap(vec3 x) {
         // Move towards white for missing luminance
         x = scaled + (missingLum / toWhiteLum) * toWhite;
     }
-
-    if (ShowExtraClamp) {
-        if (min(x.r, min(x.g, x.b)) < -0.001 || max(x.r, max(x.g, x.b)) > 1.001) return vec3(1.0, 0.0, 1.0);
-    }
-
     return x;
 }
 `,

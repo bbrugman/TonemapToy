@@ -79,6 +79,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const shaderInput = document.getElementById("user-shader");
     const compileButton = document.getElementById("compile-shader");
     const exposureInput = document.getElementById("exposure-input");
+    const showClampInput = document.getElementById("show-clamp-input");
     const uniformControls = document.getElementById("uniform-controls");
 
     const gl = canvas.getContext('webgl2');
@@ -343,6 +344,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.uniform1f(gl.getUniformLocation(program, "_imageAspectRatio"), imageAspectRatio);
         gl.uniform1i(gl.getUniformLocation(program, "_tex"), 0);
         gl.uniform1f(gl.getUniformLocation(program, "_exposure"), Math.pow(2, exposureInput.value));
+        gl.uniform1i(gl.getUniformLocation(program, "_showClamp"), showClampInput.checked);
 
         for (const uniform of userUniforms) {
             const uniformLoc = gl.getUniformLocation(program, uniform.name);
