@@ -56,7 +56,8 @@ uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
 uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.127
 uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
-uniform bool Helium_SmoothScale; // default=1
+uniform int Helium_Scaler; // choices Smooth Direct Value
+uniform float Helium_Smoothness; // logrange min=0.1 max=2.0 default=0.2
 uniform bool Helium_AbneyComp; // default=1
 
 #define saturate(x) clamp(x, 0.0, 1.0)
@@ -187,10 +188,18 @@ vec3 tonemap(vec3 x) {
         // Scale input to within the output cube
         float maxVal = max(x.r, max(x.g, x.b));
         float scale;
-        if (Helium_SmoothScale) {
+        if (Helium_Scaler == 2) {
             scale = selectedCurve(maxVal) / maxVal;
         } else {
-            scale = min(targetLum / lum, min(1.0, maxVal) / maxVal);
+            scale = targetLum / lum;
+            float scaledMax = maxVal * scale;
+            if (Helium_Scaler == 0) {
+                float p = pow(scaledMax, 1.0 / Helium_Smoothness);
+                scaledMax = pow(p / (1.0 + p), Helium_Smoothness);
+            } else {
+                scaledMax = min(scaledMax, 1.0);    
+            }
+            scale = scaledMax / maxVal;
         }
         vec3 scaled = scale * x;
 
