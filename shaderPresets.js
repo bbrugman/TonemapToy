@@ -711,7 +711,9 @@ iCtCpToRgb(vec3 ictCp) // Output: linear Rec.2020
 // range and wide gamut," Opt. Express 25, 15131-15151 (2017)
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
-#define JZAZBZ_EXPONENT_SCALE_FACTOR 1.7f // Scale factor for exponent
+#define JZAZBZ_EXPONENT_SCALE_FACTOR 0.7f // Scale factor for exponent
+// BB: PD's implementation has this at 1.7f by default,
+// but that value seems to produce poor results.
 
 vec3
 rgbToJzazbz(vec3 rgb) // Input: linear Rec.2020
