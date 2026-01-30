@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import shaderPresets from './shaderPresets.js';
+import sampleExrs from './exrs/sampleExrs.js';
+
+const INITIAL_SHADER = "Multi";
+const INITIAL_IMAGE = "Shelf";
 
 const UniformControlType = {
     CHECKBOX: "CHECKBOX",
@@ -71,6 +75,7 @@ function parseUniformDefs(glsl) {
 }
 
 document.addEventListener("DOMContentLoaded", (e) => {
+    const imageSelect = document.getElementById("image-select");
     const fileInput = document.getElementById("file-input");
     const canvas = document.getElementsByTagName("canvas")[0];
     const vsText = document.getElementById("vs").textContent.trim();
@@ -338,6 +343,14 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.viewport(0, 0, texData.width, texData.height);
     }
 
+    function updateImageFromURL(url) {
+        const fileLoader = new THREE.FileLoader();
+        fileLoader.responseType = "arraybuffer";
+        fileLoader.load(url, (data) => {
+            updateImageFromEXRBuffer(data);
+        });
+    }
+
     // main loop
     function update() {
         gl.uniform1f(gl.getUniformLocation(program, "_viewAspectRatio"), canvas.width / canvas.height);
@@ -366,7 +379,31 @@ document.addEventListener("DOMContentLoaded", (e) => {
         requestAnimationFrame(update);
     }
 
-    // UI listeners
+    // preset options
+    for (const key of Object.keys(shaderPresets)) {
+        const option = document.createElement("option");
+        option.setAttribute("value", key);
+        option.appendChild(document.createTextNode(key));
+        presetSelect.appendChild(option);
+    }
+
+    presetSelect.addEventListener("change", (e) => {
+        shaderInput.value = shaderPresets[presetSelect.value];
+        updateShader();
+    });
+
+    for (const key of Object.keys(sampleExrs)) {
+        const option = document.createElement("option");
+        option.setAttribute("value", key);
+        option.appendChild(document.createTextNode(key));
+        imageSelect.appendChild(option);
+    }
+
+    imageSelect.addEventListener("change", (e) => {
+        updateImageFromURL(sampleExrs[imageSelect.value]);
+    });
+
+    // other UI listeners
     compileButton.addEventListener("click", updateShader);
     fileInput.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -381,27 +418,11 @@ document.addEventListener("DOMContentLoaded", (e) => {
         reader.readAsArrayBuffer(file);
     });
 
-    // preset options
-    for (const key of Object.keys(shaderPresets)) {
-        const option = document.createElement("option");
-        option.setAttribute("value", key);
-        option.appendChild(document.createTextNode(key));
-        presetSelect.appendChild(option);
-    }
-
-    presetSelect.addEventListener("change", (e) => {
-        shaderInput.value = shaderPresets[presetSelect.value];
-        updateShader();
-    })
-
     // initial setup
-    const fileLoader = new THREE.FileLoader();
-    fileLoader.responseType = "arraybuffer";
-    fileLoader.load("Shelf.exr", (data) => {
-        updateImageFromEXRBuffer(data);
-    });
+    THREE.Cache.enabled = true;
+    updateImageFromURL(sampleExrs[INITIAL_IMAGE]);
 
-    const initialPreset = "Multi";
+    const initialPreset = INITIAL_SHADER;
     presetSelect.value = initialPreset;
     shaderInput.value = shaderPresets[initialPreset];
     updateShader();
