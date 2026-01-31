@@ -380,8 +380,8 @@ float rgb_2_yc(vec3 rgb) {
     float g = rgb.g; 
     float b = rgb.b;
   
-    float chroma = sqrt(max(TINY, b*(b-g)+g*(g-r)+r*(r-b)));
-    return ( b + g + r + 1.75 * chroma) / 3.;
+    float chroma = sqrt(max(TINY, b*(b-g) + g*(g-r) + r*(r-b)));
+    return (b + g + r + 1.75 * chroma) / 3.;
 }
 
 float rgb_2_hue(vec3 rgb) {
@@ -508,7 +508,7 @@ vec3 tonemap(vec3 x) {
     // Unreal Engine applies this desaturation despite not applying
     // the "dark to dim surround" gamma adjustment in the ACES 1.2
     // sRGB Output Transform that justifies it there.
-    x = mix(vec3(dot(x, AP1_RGB2Y )), x, 0.93);
+    x = mix(vec3(dot(x, AP1_RGB2Y)), x, 0.93);
 
     x = max(x, 0.0);
 
@@ -589,14 +589,14 @@ vec3 tonemap(vec3 x) {
 // -----------------------------------------------------------------------------
 // Defines the SDR reference white level used in our tone mapping (typically 250 nits).
 // -----------------------------------------------------------------------------
-#define GRAN_TURISMO_SDR_PAPER_WHITE 250.0f // cd/m^2
+#define GRAN_TURISMO_SDR_PAPER_WHITE 250.0 // cd/m^2
 
 // -----------------------------------------------------------------------------
 // Gran Turismo luminance-scale conversion helpers.
 // In Gran Turismo, 1.0f in the linear frame-buffer space corresponds to
 // REFERENCE_LUMINANCE cd/m^2 of physical luminance (typically 100 cd/m^2).
 // -----------------------------------------------------------------------------
-#define REFERENCE_LUMINANCE 100.0f // cd/m^2 <-> 1.0f
+#define REFERENCE_LUMINANCE 100.0 // cd/m^2 <-> 1.0f
 
 const float peakIntensity = GRAN_TURISMO_SDR_PAPER_WHITE / REFERENCE_LUMINANCE;
 uniform float alpha; // range default=0.25 min=0.0 max=1.0
@@ -607,18 +607,18 @@ uniform float toeStrength; // logrange default=1.280 min=0.1 max=10.0
 float GT7_Curve(float x)
 {
 
-    float k = (linearSection - 1.0f) / (alpha - 1.0f);
-    float kA     = peakIntensity * linearSection + peakIntensity * k;
-    float kB     = -peakIntensity * k * exp(linearSection / k);
-    float kC     = -1.0f / (k * peakIntensity);
+    float k  = (linearSection - 1.0) / (alpha - 1.0);
+    float kA = peakIntensity * linearSection + peakIntensity * k;
+    float kB = -peakIntensity * k * exp(linearSection / k);
+    float kC = -1.0 / (k * peakIntensity);
 
-    if (x < 0.0f)
+    if (x < 0.0)
     {
-        return 0.0f;
+        return 0.0;
     }
 
-    float weightLinear = smoothstep(0.0f, midPoint, x);
-    float weightToe    = 1.0f - weightLinear;
+    float weightLinear = smoothstep(0.0, midPoint, x);
+    float weightToe    = 1.0 - weightLinear;
 
     // Shoulder mapping for highlights.
     float shoulder = kA + kB * exp(x * kC);
@@ -648,19 +648,19 @@ eotfSt2084(float n, float exponentScaleFactor)
     // Converts from normalized PQ (0-1) to absolute luminance in cd/m^2 (linear light)
     // Assumes float input; does not handle integer encoding (Annex)
     // Assumes full-range signal (0-1)
-    const float m1  = 0.1593017578125f;            // (2610 / 4096) / 4
-    float m2 = 78.84375f * exponentScaleFactor;    // (2523 / 4096) * 128
-    const float c1  = 0.8359375f;                  // 3424 / 4096
-    const float c2  = 18.8515625f;                 // (2413 / 4096) * 32
-    const float c3  = 18.6875f;                    // (2392 / 4096) * 32
-    const float pqC = 10000.0f;                    // Maximum luminance supported by PQ (cd/m^2)
+    const float m1  = 0.1593017578125f;                // (2610 / 4096) / 4
+    float m2        = 78.84375f * exponentScaleFactor; // (2523 / 4096) * 128
+    const float c1  = 0.8359375f;                      // 3424 / 4096
+    const float c2  = 18.8515625f;                     // (2413 / 4096) * 32
+    const float c3  = 18.6875f;                        // (2392 / 4096) * 32
+    const float pqC = 10000.0;                        // Maximum luminance supported by PQ (cd/m^2)
 
     // Does not handle signal range from 2084 - assumes full range (0-1)
-    float np = pow(n, 1.0f / m2);
+    float np = pow(n, 1.0 / m2);
     float l  = max(0.0, np - c1);
 
     l = l / (c2 - c3 * np);
-    l = pow(l, 1.0f / m1);
+    l = pow(l, 1.0 / m1);
 
     return l * pqC / REFERENCE_LUMINANCE;
 }
@@ -669,16 +669,16 @@ float
 inverseEotfSt2084(float v, float exponentScaleFactor)
 {
     const float m1  = 0.1593017578125f;
-    float m2 = 78.84375f * exponentScaleFactor;
+    float m2        = 78.84375f * exponentScaleFactor;
     const float c1  = 0.8359375f;
     const float c2  = 18.8515625f;
     const float c3  = 18.6875f;
-    const float pqC = 10000.0f;
+    const float pqC = 10000.0;
 
     float y = REFERENCE_LUMINANCE * v / pqC; // Normalize for the ST-2084 curve
 
     float ym = pow(y, m1);
-    return exp2(m2 * (log2(c1 + c2 * ym) - log2(1.0f + c3 * ym)));
+    return exp2(m2 * (log2(c1 + c2 * ym) - log2(1.0 + c3 * ym)));
 }
 
 // -----------------------------------------------------------------------------
@@ -688,17 +688,17 @@ inverseEotfSt2084(float v, float exponentScaleFactor)
 vec3
 rgbToICtCp(vec3 rgb) // Input: linear Rec.2020
 {
-    float l = (rgb.r * 1688.0f + rgb.g * 2146.0f + rgb.b * 262.0f) / 4096.0f;
-    float m = (rgb.r * 683.0f + rgb.g * 2951.0f + rgb.b * 462.0f) / 4096.0f;
-    float s = (rgb.r * 99.0f + rgb.g * 309.0f + rgb.b * 3688.0f) / 4096.0f;
+    float l = (rgb.r * 1688.0 + rgb.g * 2146.0 + rgb.b * 262.0) / 4096.0;
+    float m = (rgb.r * 683.0 + rgb.g * 2951.0 + rgb.b * 462.0) / 4096.0;
+    float s = (rgb.r * 99.0 + rgb.g * 309.0 + rgb.b * 3688.0) / 4096.0;
 
     float lPQ = inverseEotfSt2084(l, 1.0);
     float mPQ = inverseEotfSt2084(m, 1.0);
     float sPQ = inverseEotfSt2084(s, 1.0);
 
-    float i = (2048.0f * lPQ + 2048.0f * mPQ) / 4096.0f;
-    float ct = (6610.0f * lPQ - 13613.0f * mPQ + 7003.0f * sPQ) / 4096.0f;
-    float cp = (17933.0f * lPQ - 17390.0f * mPQ - 543.0f * sPQ) / 4096.0f;
+    float i = (2048.0 * lPQ + 2048.0 * mPQ) / 4096.0;
+    float ct = (6610.0 * lPQ - 13613.0 * mPQ + 7003.0 * sPQ) / 4096.0;
+    float cp = (17933.0 * lPQ - 17390.0 * mPQ - 543.0 * sPQ) / 4096.0;
     return vec3(i, ct, cp);
 }
 
@@ -713,9 +713,9 @@ iCtCpToRgb(vec3 ictCp) // Output: linear Rec.2020
     float mLin = eotfSt2084(m, 1.0);
     float sLin = eotfSt2084(s, 1.0);
 
-    float r = max(3.43661f * lLin - 2.50645f * mLin + 0.0698454f * sLin, 0.0f);
-    float g = max(-0.79133f * lLin + 1.9836f * mLin - 0.192271f * sLin, 0.0f);
-    float b = max(-0.0259499f * lLin - 0.0989137f * mLin + 1.12486f * sLin, 0.0f);
+    float r = max(3.43661f * lLin - 2.50645f * mLin + 0.0698454f * sLin, 0.0);
+    float g = max(-0.79133f * lLin + 1.9836f * mLin - 0.192271f * sLin, 0.0);
+    float b = max(-0.0259499f * lLin - 0.0989137f * mLin + 1.12486f * sLin, 0.0);
     return vec3(r, g, b);
 }
 
@@ -727,8 +727,8 @@ iCtCpToRgb(vec3 ictCp) // Output: linear Rec.2020
 // range and wide gamut," Opt. Express 25, 15131-15151 (2017)
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
-#define JZAZBZ_EXPONENT_SCALE_FACTOR 0.7f // Scale factor for exponent
-// BB: PD's implementation has this at 1.7f by default,
+#define JZAZBZ_EXPONENT_SCALE_FACTOR 0.7 // Scale factor for exponent
+// BB: PD's implementation has this at 1.7 by default,
 // but that value seems to produce poor results.
 
 vec3
@@ -742,9 +742,9 @@ rgbToJzazbz(vec3 rgb) // Input: linear Rec.2020
     float mPQ = inverseEotfSt2084(m, JZAZBZ_EXPONENT_SCALE_FACTOR);
     float sPQ = inverseEotfSt2084(s, JZAZBZ_EXPONENT_SCALE_FACTOR);
 
-    float iz = 0.5f * lPQ + 0.5f * mPQ;
+    float iz = 0.5 * lPQ + 0.5 * mPQ;
 
-    float j = (0.44f * iz) / (1.0f - 0.56f * iz) - 1.6295499532821566e-11f;
+    float j = (0.44f * iz) / (1.0 - 0.56f * iz) - 1.6295499532821566e-11f;
     float a = 3.524000f * lPQ - 4.066708f * mPQ + 0.542708f * sPQ;
     float b = 0.199076f * lPQ + 1.096799f * mPQ - 1.295875f * sPQ;
     return vec3(j, a, b);
