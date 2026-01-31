@@ -135,6 +135,7 @@ float film1890Curve(float x) {
 }
 
 float selectedCurve(float x) {
+    x = 0.18 * pow(x / 0.18, Contrast);
     if (Curve == 0) return clampCurve(x);
     if (Curve == 1) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == 2) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
@@ -157,9 +158,6 @@ vec3 rgbSweep(float hue) {
 }
 
 vec3 tonemap(vec3 x) {
-
-    x = 0.18 * pow(x / 0.18, vec3(Contrast));
-
     if (Approach == 0) {
         x = APPLY(x, selectedCurve);
     } else if (Approach == 1) {
