@@ -41,15 +41,22 @@ This example shader shows off a few tonemappers and demonstrates what
 is possible.
 */
 
-uniform float LogContrast; // range min=-3.0 max=3.0 default=0.0
-uniform int Curve; // choices Clamp Exponential Hurter_&_Driffield_(1890) Hable LogToeStraightShoulder
+uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
 uniform int Approach; // choices Per-channel Value Luminance AgX Helium
-uniform float HD_Gamma; // logrange min=0.1 max=10.0 default=1.0
-uniform float Hable_WhitePoint; // logrange min=1.0 max=100.0 default=11.2
-uniform float LTSS_StraightStartX; // logrange min=0.01 max=100.0 default=0.5
-uniform float LTSS_StraightEndX; // logrange min=00.1 max=100.0 default=3.0
-uniform float LTSS_StraightStartY; // range min=0.0 max=1.0 default=0.3
-uniform float LTSS_StraightEndY; // range min=0.0 max=1.0 default=0.8
+uniform int Curve; // choices Clamp Exponential Reinhard Hable Film1890
+uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
+uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
+uniform float Hable_B; // logrange min=0.01 max=2.0 default=0.50
+uniform float Hable_C; // logrange min=0.01 max=2.0 default=0.10
+uniform float Hable_D; // logrange min=0.01 max=2.0 default=0.20
+uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
+uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
+uniform float Film1890_Gamma; // logrange min=0.1 max=10.0 default=0.65
+uniform int Film1890_Mode; // choices Linear_Scan_Invert sRGB_Scan_Invert Film_Print Negative
+uniform float Film1890_ScanPostGamma; // logrange min=0.1 max=10.0 default=1.0
+uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=4.0
+uniform float Film1890_PrintFloor; // logrange min=0.0000001 max=0.8 default=0.01
+uniform bool Film1890_PrintNormalize; // default=0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
 uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
@@ -71,52 +78,68 @@ float exponentialCurve(float x) {
     return 1.0 - exp(-x);
 }
 
-float idealFilmCurve(float x) {
-    /*
-    This curve deserves more elaboration than fits here.
-    It's derived from a formula given by the inventors of film 
-    characteristic curves, Hurter & Driffield, in 1890(!).
-    When plotted on the digital equivalent of such a chart, it 
-    has an infinite "linear portion" with slope proportional to
-    the gamma parameter. For gamma=1, it reduces to the well-
-    known curve from Reinhard (2002), who did not cite H&D.
-    */
-    return 1.0 - pow(1.0 + x/HD_Gamma, -HD_Gamma);
+float reinhardCurve(float x) {
+    return x / (1.0 + x);
 }
 
 // Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
 float hableCurve(float x) {
-    float A = 0.15;
-    float B = 0.50;
-    float C = 0.10;
-    float D = 0.20;
-    float E = 0.02;
-    float F = 0.30;
-    float W = Hable_WhitePoint;
+    float A = Hable_A;
+    float B = Hable_B;
+    float C = Hable_C;
+    float D = Hable_D;
+    float E = Hable_E;
+    float F = Hable_F;
 
-    float mappedWhite = ((W*(A*W+C*B)+D*E)/(W*(A*W+B)+D*F))-E/F;
-
-    // Adjust exposure to set curve derivative at zero to one
-    float deriv0 = (B*(C*F-E)/(D*F*F)) / mappedWhite;
-    x /= deriv0;
-
-    float mapped = ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
-    return min(1.0, mapped / mappedWhite);
+    return min(1.0, ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F);
 }
 
-float logToeStraightShoulder(float x) {
-    float logX = log(x);
-    float logStartX = log(LTSS_StraightStartX);
-    float logEndX = log(LTSS_StraightEndX);
+float film1890Curve(float x) {
+    // TODO: write something explaining what's going on here.
+    // Simulate idealized (monochromatic) film according to 
+    // equations from Hurter & Driffield (1890) that few people
+    // seem to know about.
 
-    float straightSlope = (LTSS_StraightEndY - LTSS_StraightStartY) / (logEndX - logStartX);
-    if (x < LTSS_StraightStartX) {
-        return LTSS_StraightStartY * exp((straightSlope / LTSS_StraightStartY) * (logX - logStartX));
+    // Ad hoc exposure boost for modes other than linear scan
+    if (Film1890_Mode != 0) x *= 10.0;
+
+    float negativeTransparency = pow(1.0 + x / Film1890_Gamma, -Film1890_Gamma);
+    if (Film1890_Mode == 3) return negativeTransparency;
+
+    if (Film1890_Mode == 0) {
+        // Digitally scan and invert negative in linear RGB
+        float scannedValue = 1.0 - negativeTransparency;
+        return pow(scannedValue, Film1890_ScanPostGamma);
     }
-    if (x > LTSS_StraightEndX) {
-        return 1.0 - (1.0 - LTSS_StraightEndY) * exp((straightSlope / (1.0 - LTSS_StraightEndY)) * (-logX + logEndX));
+    if(Film1890_Mode == 1) {
+        // Digitally scan and invert negative in (approximate) sRGB
+        float scannedValue = 1.0 - pow(negativeTransparency, 1.0/2.2);
+        return pow(scannedValue, 2.2 * Film1890_ScanPostGamma);
     }
-    return LTSS_StraightStartY + straightSlope * (logX - logStartX);
+
+    // Simulate analog film printing
+    
+    // Solve for print exposure so unexposed negative yields configured floor
+    float printExposure = Film1890_PrintGamma * (
+        pow(Film1890_PrintFloor, 1.0 / -Film1890_PrintGamma) - 1.0
+    );
+    float printReflectivity = pow(
+        1.0 + printExposure * negativeTransparency / Film1890_PrintGamma,
+        -Film1890_PrintGamma
+    );
+    
+    if (Film1890_PrintNormalize) {
+        return (printReflectivity - Film1890_PrintFloor) / (1.0 - Film1890_PrintFloor);
+    }
+    return printReflectivity;
+}
+
+float selectedCurve(float x) {
+    if (Curve == 0) return clampCurve(x);
+    if (Curve == 1) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
+    if (Curve == 2) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
+    if (Curve == 3) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
+    if (Curve == 4) return film1890Curve(x);
 }
 
 float luminance(vec3 linearRGB) {
@@ -133,17 +156,9 @@ vec3 rgbSweep(float hue) {
     return (color - minRGB) / (maxRGB - minRGB);
 }
 
-float selectedCurve(float x) {
-    if (Curve == 0) return clampCurve(x);
-    if (Curve == 1) return exponentialCurve(x);
-    if (Curve == 2) return idealFilmCurve(x);
-    if (Curve == 3) return hableCurve(x);
-    if (Curve == 4) return logToeStraightShoulder(x);
-}
-
 vec3 tonemap(vec3 x) {
 
-    x = 0.5*pow(2.0*x, vec3(exp(LogContrast)));
+    x = 0.18 * pow(x / 0.18, vec3(Contrast));
 
     if (Approach == 0) {
         x = APPLY(x, selectedCurve);
@@ -180,6 +195,7 @@ vec3 tonemap(vec3 x) {
         x = APPLY(x, selectedCurve);
         x = agxMatrixInverse * x;
     } else if (Approach == 4) {
+        // https://github.com/bbrugman/Helium-Tonemapper
         const vec3 white = vec3(1.0, 1.0, 1.0);
 
         float lum = luminance(x);
