@@ -59,7 +59,7 @@ uniform float Film1890_PrintFloor; // logrange min=0.0000001 max=0.8 default=0.0
 uniform bool Film1890_PrintNormalize; // default=0
 uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
-uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.042
+uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.140
 uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.127
 uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
