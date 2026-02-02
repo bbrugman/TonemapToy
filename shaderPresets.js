@@ -57,12 +57,12 @@ uniform float Film1890_ScanPostGamma; // logrange min=0.1 max=10.0 default=1.0
 uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=4.0
 uniform float Film1890_PrintFloor; // logrange min=0.0000001 max=0.8 default=0.01
 uniform bool Film1890_PrintNormalize; // default=0
-uniform float AgX_RotateR; // range min=-0.99 max=0.99 default=0.001
-uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.235
-uniform float AgX_RotateG; // range min=-0.99 max=0.99 default=-0.140
-uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.127
-uniform float AgX_RotateB; // range min=-0.99 max=0.99 default=0.041
-uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.127
+uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
+uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
+uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
+uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.15
+uniform float AgX_RotateB; // range min=-0.5 max=0.5 default=-0.08
+uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.10
 uniform int Helium_Scaler; // choices Smooth Direct Value
 uniform float Helium_Smoothness; // logrange min=0.1 max=2.0 default=0.2
 uniform bool Helium_AbneyComp; // default=1
@@ -149,14 +149,6 @@ float luminance(vec3 linearRGB) {
     return dot(luminanceCoefs, linearRGB);
 }
 
-vec3 rgbSweep(float hue) {
-    vec3 color = cos((hue - vec3(0.0, 1.0, 2.0)) * 3.141592 * 2.0 / 3.0);
-    float maxRGB = max(color.r, max(color.g, color.b));
-    float minRGB = min(color.r, min(color.g, color.b));
-  
-    return (color - minRGB) / (maxRGB - minRGB);
-}
-
 vec3 tonemap(vec3 x) {
     if (Approach == 0) {
         x = APPLY(x, selectedCurve);
@@ -177,17 +169,24 @@ vec3 tonemap(vec3 x) {
         "[...] no degree of "precision" [in the curve] can afford much utility."
         "Any attempt to harness the ideas within this archive should expose [the] rotation and inset parameters."
 
-        The parameterization here is not quite the same as in the original AgX,
-        mostly for performance reasons, but should be similar in spirit.
+        The parameterization here should be similar in spirit to the original,
+        but creates the 3x3 matrix more directly to avoid costly color geometry math.
         */
-        const vec3 sum1Gray = vec3(1.0 / 3.0);
 
-        vec3 primaryR = mix(vec3(1.0 - abs(AgX_RotateR), max(0.0, -AgX_RotateR), max(0.0, AgX_RotateR)), sum1Gray, AgX_InsetR);
-        vec3 primaryG = mix(vec3(max(0.0, AgX_RotateG), 1.0 - abs(AgX_RotateG), max(0.0, -AgX_RotateG)), sum1Gray, AgX_InsetG);
-        vec3 primaryB = mix(vec3(max(0.0, -AgX_RotateB), max(0.0, AgX_RotateB), 1.0 - abs(AgX_RotateB)), sum1Gray, AgX_InsetB);
+        vec3 agxPrimaryR = mix(vec3(1.0 - abs(-AgX_RotateR), max(0.0, AgX_RotateR), max(0.0, -AgX_RotateR)), vec3(1.0), AgX_InsetR);
+        vec3 agxPrimaryG = mix(vec3(max(0.0, -AgX_RotateG), 1.0 - abs(-AgX_RotateG), max(0.0, AgX_RotateG)), vec3(1.0), AgX_InsetG);
+        vec3 agxPrimaryB = mix(vec3(max(0.0, AgX_RotateB), max(0.0, -AgX_RotateB), 1.0 - abs(-AgX_RotateB)), vec3(1.0), AgX_InsetB);
 
-        mat3 agxMatrix = transpose(mat3(primaryR, primaryG, primaryB));
+        mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
         mat3 agxMatrixInverse = inverse(agxMatrix);
+        // Adjust for correct white point
+        vec3 wb = agxMatrixInverse * vec3(1.0);
+        agxMatrix[0] *= wb.r;
+        agxMatrix[1] *= wb.g;
+        agxMatrix[2] *= wb.b;
+        agxMatrixInverse[0] /= wb;
+        agxMatrixInverse[1] /= wb;
+        agxMatrixInverse[2] /= wb;
 
         x = agxMatrix * x;
         x = APPLY(x, selectedCurve);
