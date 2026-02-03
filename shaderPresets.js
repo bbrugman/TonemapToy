@@ -159,23 +159,43 @@ vec3 tonemap(vec3 x) {
     } else if (Approach == 2) {
         float lum = luminance(x);
         float targetLum = selectedCurve(lum);
-        x = x * (targetLum / lum); 
+        x = x * (targetLum / lum);
     } else if (Approach == 3) {
         /*
         For some reason, many seem to think of "AgX" as "the specific curve and
         3x3 matrix Troy Sobotka came up with", which is remarkable in light of his
         comments at https://github.com/sobotka/AgX-S2O3.
-        "[...] the curve formula employed [...] is detached from the more important mechanisms [...]"
+        "[...] the curve formula employed [...] is detached from the more important
+        mechanisms [...]"
         "[...] no degree of "precision" [in the curve] can afford much utility."
-        "Any attempt to harness the ideas within this archive should expose [the] rotation and inset parameters."
+        "Any attempt to harness the ideas within this archive should expose [the]
+        rotation and inset parameters."
 
         The parameterization here should be similar in spirit to the original,
         but creates the 3x3 matrix more directly to avoid costly color geometry math.
         */
 
-        vec3 agxPrimaryR = mix(vec3(1.0 - abs(-AgX_RotateR), max(0.0, AgX_RotateR), max(0.0, -AgX_RotateR)), vec3(1.0), AgX_InsetR);
-        vec3 agxPrimaryG = mix(vec3(max(0.0, -AgX_RotateG), 1.0 - abs(-AgX_RotateG), max(0.0, AgX_RotateG)), vec3(1.0), AgX_InsetG);
-        vec3 agxPrimaryB = mix(vec3(max(0.0, AgX_RotateB), max(0.0, -AgX_RotateB), 1.0 - abs(-AgX_RotateB)), vec3(1.0), AgX_InsetB);
+        vec3 agxPrimaryR = mix(
+            vec3(
+                1.0 - abs(-AgX_RotateR),
+                max(0.0, AgX_RotateR),
+                max(0.0, -AgX_RotateR)
+            ), vec3(1.0), AgX_InsetR
+        );
+        vec3 agxPrimaryG = mix(
+            vec3(
+                max(0.0, -AgX_RotateG),
+                1.0 - abs(-AgX_RotateG),
+                max(0.0, AgX_RotateG)
+            ), vec3(1.0), AgX_InsetG
+        );
+        vec3 agxPrimaryB = mix(
+            vec3(
+                max(0.0, AgX_RotateB),
+                max(0.0, -AgX_RotateB),
+                1.0 - abs(-AgX_RotateB)
+            ), vec3(1.0), AgX_InsetB
+        );
 
         mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
         mat3 agxMatrixInverse = inverse(agxMatrix);
@@ -382,7 +402,10 @@ float rgb_2_yc(vec3 rgb) {
 }
 
 float rgb_2_hue(vec3 rgb) {
-    float hue = (180. / 3.14159265) * atan(sqrt(3.) * (rgb.g - rgb.b), 2. * rgb.r - rgb.g - rgb.b);
+    float hue = (180. / 3.14159265) * atan(
+        sqrt(3.) * (rgb.g - rgb.b),
+        2. * rgb.r - rgb.g - rgb.b
+    );
     if (hue < 0.) hue = hue + 360.;
     return hue;
 }
@@ -430,15 +453,21 @@ float UE_FilmCurve(float x) {
         toeIntoStraight = log10(0.18) + (toeMax - 0.18) / UE_CurveSlope;
     } else {
         float toeTargetClimb = UE_CurveBlackClip + 0.18;
-        toeIntoStraight = log10(0.18) + 0.5 * (toeHeight / UE_CurveSlope) * log((2. * toeHeight - toeTargetClimb) / toeTargetClimb);
+        toeIntoStraight = log10(0.18) + 0.5 * (toeHeight / UE_CurveSlope) * log(
+            (2. * toeHeight - toeTargetClimb) / toeTargetClimb
+        );
     }
 
     float straightIntoShoulder = (shoulderMin - toeMax) / UE_CurveSlope + toeIntoStraight;
 
     float logX = log10(x);
 
-    float toe = (2. * toeHeight) / (1. + exp((-2. * UE_CurveSlope / toeHeight) * (logX - toeIntoStraight))) - UE_CurveBlackClip;
-    float shoulder = 1.0 + UE_CurveWhiteClip - (2. * shoulderHeight) / (1. + exp((2. * UE_CurveSlope / shoulderHeight) * (logX - straightIntoShoulder)));
+    float toe = (2. * toeHeight) / (1. + exp(
+        (-2. * UE_CurveSlope / toeHeight) * (logX - toeIntoStraight)
+    )) - UE_CurveBlackClip;
+    float shoulder = 1.0 - (2. * shoulderHeight) / (1. + exp(
+        (2. * UE_CurveSlope / shoulderHeight) * (logX - straightIntoShoulder)
+    )) + UE_CurveWhiteClip;
     float straight = toeMax + UE_CurveSlope * (logX - toeIntoStraight);
     
     float toeAndStraight = mix(toe, straight, toe < straight);
@@ -650,7 +679,7 @@ eotfSt2084(float n, float exponentScaleFactor)
     const float c1  = 0.8359375f;                      // 3424 / 4096
     const float c2  = 18.8515625f;                     // (2413 / 4096) * 32
     const float c3  = 18.6875f;                        // (2392 / 4096) * 32
-    const float pqC = 10000.0;                        // Maximum luminance supported by PQ (cd/m^2)
+    const float pqC = 10000.0;                         // Maximum luminance supported by PQ (cd/m^2)
 
     // Does not handle signal range from 2084 - assumes full range (0-1)
     float np = pow(n, 1.0 / m2);
