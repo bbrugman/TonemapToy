@@ -131,7 +131,20 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
         fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
         // insert user code into fragment shader
-        gl.shaderSource(fragmentShader, fsText.replace("// YOUR CODE GOES HERE", userCode));
+        let shaderCode = fsText.replace("// YOUR CODE GOES HERE", userCode);
+        // add defines for choice uniforms
+        const constantCodeLines = [];
+        for (const userUniform of userUniforms) {
+            if (!("choices" in userUniform)) continue;
+            for (const [choiceIndex, choice] of userUniform.choices.entries()) {
+                const choiceSuffix = choice.replace(/[^0-9a-zA-Z_]/, "").toUpperCase()
+                const choiceConstant = userUniform.name.toUpperCase() + "_" + choiceSuffix;
+                constantCodeLines.push(`#define ${choiceConstant} ${choiceIndex}`);
+            }
+        }
+        shaderCode = shaderCode.replace("// GENERATED MACROS GO HERE", constantCodeLines.join("\n"));
+
+        gl.shaderSource(fragmentShader, shaderCode);
         gl.compileShader(fragmentShader);
         if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
             alert("Fragment shader (your code starting at line 9) failed to compile:\n"

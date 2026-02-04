@@ -20,6 +20,11 @@ For ints or uints,
 // choices <choice1> [choice2] [...]
 creates a selector, where the n-th option yields value n-1.
 The first option will be selected by default.
+For each choice, a macro will be created with the
+corresponding value as the token. The identifier is the result of
+taking the uniform name and choice name, stripping illegal 
+characters, uppercasing both, and concatenating with an underscore.
+(E.g. UNIFORMNAME_CHOICE1 = 0, UNIFORMNAME_CHOICE2 = 1, ...)
 
 For floats, 
 // range min=<min> max=<max>
@@ -100,20 +105,23 @@ float film1890Curve(float x) {
     // equations from Hurter & Driffield (1890) that few people
     // seem to know about.
 
-    if (Film1890_Mode == 2 || Film1890_Mode == 3) {
+    if (
+        Film1890_Mode == FILM1890_MODE_FILM_PRINT 
+        || Film1890_Mode == FILM1890_MODE_NEGATIVE
+    ) {
         // Boost negative exposure
         x *= exp2(Film1890_BoostStops);
     }
 
     float negativeTransparency = pow(1.0 + x / Film1890_Gamma, -Film1890_Gamma);
-    if (Film1890_Mode == 3) return negativeTransparency;
+    if (Film1890_Mode == FILM1890_MODE_NEGATIVE) return negativeTransparency;
 
-    if (Film1890_Mode == 0) {
+    if (Film1890_Mode == FILM1890_MODE_LINEAR_SCAN_INVERT) {
         // Digitally scan and invert negative in linear RGB
         float scannedValue = 1.0 - negativeTransparency;
         return pow(scannedValue, Film1890_ScanPostGamma);
     }
-    if (Film1890_Mode == 1) {
+    if (Film1890_Mode == FILM1890_MODE_SRGB_SCAN_INVERT) {
         // Digitally scan and invert negative in (approximate) sRGB
         float scannedValue = 1.0 - pow(negativeTransparency, 1.0/2.2);
         return pow(scannedValue, 2.2 * Film1890_ScanPostGamma);
@@ -141,11 +149,11 @@ float film1890Curve(float x) {
 
 float selectedCurve(float x) {
     x = 0.18 * pow(x / 0.18, Contrast);
-    if (Curve == 0) return clampCurve(x);
-    if (Curve == 1) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
-    if (Curve == 2) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
-    if (Curve == 3) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
-    if (Curve == 4) return film1890Curve(x);
+    if (Curve == CURVE_CLAMP) return clampCurve(x);
+    if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
+    if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
+    if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
+    if (Curve == CURVE_FILM1890) return film1890Curve(x);
 }
 
 float luminance(vec3 linearRGB) {
@@ -155,17 +163,17 @@ float luminance(vec3 linearRGB) {
 }
 
 vec3 tonemap(vec3 x) {
-    if (Approach == 0) {
+    if (Approach == APPROACH_PERCHANNEL) {
         x = APPLY(x, selectedCurve);
-    } else if (Approach == 1) {
+    } else if (Approach == APPROACH_VALUE) {
         float maxVal = max(x.r, max(x.g, x.b));
         float target = selectedCurve(maxVal);
         x = x * (target / maxVal);
-    } else if (Approach == 2) {
+    } else if (Approach == APPROACH_LUMINANCE) {
         float lum = luminance(x);
         float targetLum = selectedCurve(lum);
         x = x * (targetLum / lum);
-    } else if (Approach == 3) {
+    } else if (Approach == APPROACH_AGX) {
         /*
         For some reason, many seem to think of "AgX" as "the specific curve and
         3x3 matrix Troy Sobotka came up with", which is remarkable in light of his
@@ -216,7 +224,7 @@ vec3 tonemap(vec3 x) {
         x = agxMatrix * x;
         x = APPLY(x, selectedCurve);
         x = agxMatrixInverse * x;
-    } else if (Approach == 4) {
+    } else if (Approach == APPROACH_HELIUM) {
         // https://github.com/bbrugman/Helium-Tonemapper
         const vec3 white = vec3(1.0, 1.0, 1.0);
 
@@ -226,12 +234,12 @@ vec3 tonemap(vec3 x) {
         // Scale input to within the output cube
         float maxVal = max(x.r, max(x.g, x.b));
         float scale;
-        if (Helium_Scaler == 2) {
+        if (Helium_Scaler == HELIUM_SCALER_VALUE) {
             scale = selectedCurve(maxVal) / maxVal;
         } else {
             scale = targetLum / lum;
             float scaledMax = maxVal * scale;
-            if (Helium_Scaler == 0) {
+            if (Helium_Scaler == HELIUM_SCALER_SMOOTH) {
                 float p = pow(scaledMax, 1.0 / Helium_Smoothness);
                 scaledMax = pow(p / (1.0 + p), Helium_Smoothness);
             } else {
@@ -809,12 +817,12 @@ uniform float fadeStart; // range default=0.98 min=0.0 max=2.0
 uniform float fadeEnd; // range default=1.16 min=0.0 max=2.0
 
 vec3 rgbToUcs(vec3 rgb) {
-    if (UCS == 0) return rgbToICtCp(rgb);
+    if (UCS == UCS_ICTCP) return rgbToICtCp(rgb);
     return rgbToJzazbz(rgb);
 }
 
 vec3 ucsToRgb(vec3 ucs) {
-    if (UCS == 0) return iCtCpToRgb(ucs);
+    if (UCS == UCS_ICTCP) return iCtCpToRgb(ucs);
     return jzazbzToRgb(ucs);
 }
 
