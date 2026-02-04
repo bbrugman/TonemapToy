@@ -54,8 +54,8 @@ uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
 uniform float Film1890_Gamma; // logrange min=0.1 max=10.0 default=0.65
 uniform int Film1890_Mode; // choices Linear_Scan_Invert sRGB_Scan_Invert Film_Print Negative
 uniform float Film1890_ScanPostGamma; // logrange min=0.1 max=10.0 default=1.0
-uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=4.0
-uniform float Film1890_PrintFloor; // logrange min=0.0000001 max=0.8 default=0.01
+uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=3.5
+uniform float Film1890_BoostStops; // range min=0.0 max=20.0 default=5.0
 uniform bool Film1890_PrintNormalize; // default=0
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
@@ -100,8 +100,10 @@ float film1890Curve(float x) {
     // equations from Hurter & Driffield (1890) that few people
     // seem to know about.
 
-    // Ad hoc exposure boost for modes other than linear scan
-    if (Film1890_Mode != 0) x *= 10.0;
+    if (Film1890_Mode == 2 || Film1890_Mode == 3) {
+        // Boost negative exposure
+        x *= exp2(Film1890_BoostStops);
+    }
 
     float negativeTransparency = pow(1.0 + x / Film1890_Gamma, -Film1890_Gamma);
     if (Film1890_Mode == 3) return negativeTransparency;
@@ -111,25 +113,28 @@ float film1890Curve(float x) {
         float scannedValue = 1.0 - negativeTransparency;
         return pow(scannedValue, Film1890_ScanPostGamma);
     }
-    if(Film1890_Mode == 1) {
+    if (Film1890_Mode == 1) {
         // Digitally scan and invert negative in (approximate) sRGB
         float scannedValue = 1.0 - pow(negativeTransparency, 1.0/2.2);
         return pow(scannedValue, 2.2 * Film1890_ScanPostGamma);
     }
 
     // Simulate analog film printing
-    
-    // Solve for print exposure so unexposed negative yields configured floor
-    float printExposure = Film1890_PrintGamma * (
-        pow(Film1890_PrintFloor, 1.0 / -Film1890_PrintGamma) - 1.0
-    );
+
+    // Solve for print exposure to map boosted 0.18 to 0.18
+    float printExposure = (pow(0.18, 1.0 / -Film1890_PrintGamma) - 1.0)
+        * Film1890_PrintGamma
+        / pow(1.0 + 0.18 * exp2(Film1890_BoostStops) / Film1890_Gamma, -Film1890_Gamma)
+    ;
+
     float printReflectivity = pow(
         1.0 + printExposure * negativeTransparency / Film1890_PrintGamma,
         -Film1890_PrintGamma
     );
-    
+
+    float printFloor = pow(1.0 + printExposure / Film1890_PrintGamma, -Film1890_PrintGamma);    
     if (Film1890_PrintNormalize) {
-        return (printReflectivity - Film1890_PrintFloor) / (1.0 - Film1890_PrintFloor);
+        return (printReflectivity - printFloor) / (1.0 - printFloor);
     }
     return printReflectivity;
 }
