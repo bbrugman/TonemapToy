@@ -131,6 +131,10 @@
             <div>
                 <input id="show-clamp-input" type="checkbox" /><label for="show-clamp-input">Mark clamped areas</label>
             </div>
+            <div>
+                <input id="srgb-display-gamma-input" type="checkbox" checked /><label
+                    for="srgb-display-gamma-input">Encode in gamma 2.2</label>
+            </div>
 
             <label for="preset-select">Shader preset</label>
             <select id="preset-select"></select>
@@ -165,12 +169,17 @@ out vec4 _outputColor;
 uniform sampler2D _tex;
 uniform float _exposure;
 uniform bool _showClamp;
+uniform bool _pureGammaEncode;
 
 // GENERATED MACROS GO HERE
 
 // YOUR CODE GOES HERE
 
 vec3 _sRgbIeotf(vec3 x) {
+    // See https://community.acescentral.com/t/srgb-piece-wise-eotf-vs-pure-gamma/4024
+    if (_pureGammaEncode) {
+        return pow(x, vec3(1.0 / 2.2));
+    }
     return mix(
         1.055 * pow(x, vec3(1.0 / 2.4)) - 0.055,
         12.92 * x,

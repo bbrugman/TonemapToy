@@ -85,6 +85,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const compileButton = document.getElementById("compile-shader");
     const exposureInput = document.getElementById("exposure-input");
     const showClampInput = document.getElementById("show-clamp-input");
+    const sRgbDisplayGammaInput = document.getElementById("srgb-display-gamma-input");
     const uniformControls = document.getElementById("uniform-controls");
 
     const gl = canvas.getContext('webgl2');
@@ -350,9 +351,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
         imageAspectRatio = texData.width / texData.height;
         canvas.width = texData.width;
         canvas.height = texData.height;
-        // When Safari and Firefox implement drawingBufferStorage,
-        // the sRGB IEOTF shader code can be removed and this used instead:
-        // gl.drawingBufferStorage(gl.SRGB8_ALPHA8, texData.width, texData.height);
         gl.viewport(0, 0, texData.width, texData.height);
     }
 
@@ -371,6 +369,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.uniform1i(gl.getUniformLocation(program, "_tex"), 0);
         gl.uniform1f(gl.getUniformLocation(program, "_exposure"), Math.pow(2, exposureInput.value));
         gl.uniform1i(gl.getUniformLocation(program, "_showClamp"), showClampInput.checked);
+        gl.uniform1i(gl.getUniformLocation(program, "_pureGammaEncode"), sRgbDisplayGammaInput.checked);
 
         for (const uniform of userUniforms) {
             const uniformLoc = gl.getUniformLocation(program, uniform.name);
