@@ -97,7 +97,8 @@ float hableCurve(float x) {
     float D = Hable_D;
     float E = Hable_E;
     float F = Hable_F;
-
+    
+    x *= 2.0;
     return min(1.0, ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F);
 }
 
