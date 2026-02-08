@@ -48,7 +48,7 @@ is possible.
 
 uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
 uniform int Approach; // choices Per-channel Value Luminance AgX Helium
-uniform int Curve; // choices Clamp Exponential Reinhard Hable Film1890
+uniform int Curve; // choices Clamp Exponential Reinhard Hable Film1890 DoubleGamma
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
 uniform float Hable_B; // logrange min=0.01 max=2.0 default=0.50
@@ -62,6 +62,8 @@ uniform float Film1890_ScanPostGamma; // logrange min=0.1 max=10.0 default=1.0
 uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=3.5
 uniform float Film1890_BoostStops; // range min=0.0 max=20.0 default=5.0
 uniform bool Film1890_PrintNormalize; // default=0
+uniform float DoubleGamma_High; // logrange min=0.1 max=10.0 default=0.65
+uniform float DoubleGamma_Low; // logrange min=0.1 max=10.0 default=2.5
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
 uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
@@ -147,6 +149,16 @@ float film1890Curve(float x) {
     return printReflectivity;
 }
 
+float doubleGammaCurve(float x) {
+    // Film1890 FilmPrint mode with negative and positive exposure
+    // going to infinity in tandem.
+    x *= DoubleGamma_Low * DoubleGamma_High;
+    return pow(
+        1.0 + pow(x, -DoubleGamma_High) / DoubleGamma_Low,
+        -DoubleGamma_Low
+    );
+}
+
 float selectedCurve(float x) {
     x = 0.18 * pow(x / 0.18, Contrast);
     if (Curve == CURVE_CLAMP) return clampCurve(x);
@@ -154,6 +166,7 @@ float selectedCurve(float x) {
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
     if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
     if (Curve == CURVE_FILM1890) return film1890Curve(x);
+    if (Curve == CURVE_DOUBLEGAMMA) return doubleGammaCurve(x);
 }
 
 float luminance(vec3 linearRGB) {
