@@ -781,8 +781,8 @@ iCtCpToRgb(vec3 ictCp) // Output: linear Rec.2020
 // Note: Coefficients adjusted for linear Rec.2020
 // -----------------------------------------------------------------------------
 #define JZAZBZ_EXPONENT_SCALE_FACTOR 0.7 // Scale factor for exponent
-// BB: PD's implementation has this at 1.7 by default,
-// but that value seems to produce poor results.
+// BB: Polyphony Digital's example implementation has this at 1.7 by default,
+// but that leads to poor results for high exposure values.
 
 vec3
 rgbToJzazbz(vec3 rgb) // Input: linear Rec.2020
@@ -868,8 +868,23 @@ vec3 GT7_Tonemap(vec3 rgb) { // Input: linear Rec.2020
 
     // Convert back to RGB.
     vec3 scaledRgb = ucsToRgb(scaledUcs);
+    /*
+        BB:
+        "scaledRgb" is often *far* out of bounds of the output color space.
+        This is not discussed in the presentation and the example
+        implementation does not clamp the color before blending.
+
+        The final clamp to display range is doing a lot of work for this
+        tonemapper. The resultant points of non-differentiability in the
+        paths to white are visible in the chromaticity diagram in the 
+        presentation, so this seems to be a genuine fact of the GT7
+        tonemapping approach rather than an error or omission in the
+        presentation or example implementation.
+    */
 
     // Final blend between per-channel and UCS-scaled results.
+    // BB: omitting the display range ceiling here,
+    // see comments in tonemap()
     return mix(skewedRgb, scaledRgb, blendRatio) / peakIntensity;
 }
 
@@ -890,11 +905,16 @@ vec3 tonemap(vec3 x) {
     vec3 x2020 = x * Rec709_to_Rec2020;
     vec3 tonemapped2020 = GT7_Tonemap(x2020);
     /* 
+        BB:
         The example implementation from Polyphony Digital implies that the
         above vec3 is "ready for sRGB EOTF".
         That's hard to believe: we haven't converted to Rec. 709 primaries yet!
-        Here we infer from the presentation saying that "if exposure is set 
-        properly, color clipping is not an issue" that the below suffices.
+        Here we infer from the presentation saying "if exposure is set properly,
+        color clipping is not an issue" and the lack of any additional 
+        discussion on this point that the below is intended.
+
+        It's unclear if values are clamped to [0,1] before or after Rec. 709
+        conversion in the actual game.
     */
     return tonemapped2020 * Rec2020_to_Rec709;
 }
