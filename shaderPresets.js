@@ -47,7 +47,7 @@ is possible.
 */
 
 uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
-uniform int Approach; // choices Per-channel Value Luminance AgX Helium
+uniform int Approach; // choices Per-channel Luminance AgX Helium
 uniform int Curve; // choices Clamp Exponential Reinhard Hable Film1890 DoubleGamma
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
@@ -64,6 +64,7 @@ uniform float Film1890_BoostStops; // range min=0.0 max=20.0 default=5.0
 uniform bool Film1890_PrintNormalize; // default=0
 uniform float DoubleGamma_High; // logrange min=0.1 max=10.0 default=0.65
 uniform float DoubleGamma_Low; // logrange min=0.1 max=10.0 default=2.5
+uniform int Luminance_OOBTreatment; // choices None_(Clamp) MaxScale
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
 uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
@@ -179,14 +180,21 @@ float luminance(vec3 linearRGB) {
 vec3 tonemap(vec3 x) {
     if (Approach == APPROACH_PERCHANNEL) {
         x = APPLY(x, selectedCurve);
-    } else if (Approach == APPROACH_VALUE) {
-        float maxVal = max(x.r, max(x.g, x.b));
-        float target = selectedCurve(maxVal);
-        x = x * (target / maxVal);
     } else if (Approach == APPROACH_LUMINANCE) {
         float lum = luminance(x);
         float targetLum = selectedCurve(lum);
-        x = x * (targetLum / lum);
+        x *= targetLum / lum;
+        
+        /*
+        Luminance-based tonemapping is often said to "preserve hue",
+        but the above scaled color can easily have channel values above one,
+        even if the curve itself is bounded by one.
+        To "preserve hue" (and saturation) in the hue-saturation-value sense,
+        the below is needed in addition.
+        */
+        if (Luminance_OOBTreatment == LUMINANCE_OOBTREATMENT_MAXSCALE) {
+            x /= max(1.0, max(x.r, max(x.g, x.b)));
+        }
     } else if (Approach == APPROACH_AGX) {
         /*
         For some reason, many seem to think of "AgX" as "the specific curve and
