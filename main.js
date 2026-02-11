@@ -12,7 +12,7 @@ const UniformControlType = {
     CHECKBOX: "CHECKBOX",
     NUMBER: "NUMBER",
     RANGE: "RANGE",
-    SELECT: "RADIO"
+    SELECT: "SELECT"
 };
 
 function parseUniformDefs(glsl) {
@@ -168,7 +168,7 @@ function updateUniformUI(container, uniformData, prevUniformData) {
                     if (prevValue !== null) value = prevValue;
 
                     const control = uiC.createNumericControl(value);
-                    container.appendChild(uiC.labelControlDiv(uniform.name, control));
+                    container.appendChild(uiC.labelControl(uniform.name, control).element);
 
                     uniform.getValue = control.getValue;
                 }
@@ -183,7 +183,7 @@ function updateUniformUI(container, uniformData, prevUniformData) {
                     }
 
                     const control = uiC.createRangeControl(uniform.min, uniform.max, value, uniform.logarithmic);
-                    const labeled = uiC.labelControlDiv(uniform.name, control);
+                    const labeled = uiC.labelControl(uniform.name, control).element;
                     labeled.appendChild(uiC.createLinkedNumericControl(control).element);
                     container.appendChild(labeled);
 
@@ -197,7 +197,7 @@ function updateUniformUI(container, uniformData, prevUniformData) {
                         value = prevValue;
                     }
                     const control = uiC.createSelectorControl(uniform.choices, undefined, value);
-                    container.appendChild(uiC.labelControlDiv(uniform.name, control));
+                    container.appendChild(uiC.labelControl(uniform.name, control).element);
 
                     uniform.getValue = control.getValue;
                 }
@@ -309,7 +309,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
     // create static controls
     const staticControls = document.getElementById("static-controls");
     let add = function (labelText, control) {
-        const div = uiC.labelControlDiv(labelText, control);
+        const div = uiC.labelControl(labelText, control).element;
         staticControls.appendChild(div);
         return div;
     }

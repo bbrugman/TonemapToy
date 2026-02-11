@@ -1,4 +1,4 @@
-// controls (concept bundling the element and the value getter)
+// controls (concept bundling an element and a value getter)
 
 export function createCheckboxControl(checked = false) {
     const input = document.createElement("input");
@@ -6,16 +6,16 @@ export function createCheckboxControl(checked = false) {
     input.checked = checked;
 
     return {
-        "element": input,
-        "getValue": () => (input.checked ? 1 : 0)
+        element: input,
+        getValue: () => (input.checked ? 1 : 0)
     };
 }
 
 export function createLabeledCheckboxControl(labelText, checked = false) {
     const control = createCheckboxControl(checked);
     return {
-        "element": divWrap(control.element, createLabel(labelText, control.element)),
-        "getValue": control.getValue
+        element: divWrap(control.element, createLabel(labelText, control.element)),
+        getValue: control.getValue
     }
 }
 
@@ -25,8 +25,8 @@ export function createNumericControl(value = "0") {
     input.value = value;
 
     return {
-        "element": input,
-        "getValue": () => parseFloat(input.value)
+        element: input,
+        getValue: () => parseFloat(input.value)
     }
 }
 
@@ -52,9 +52,9 @@ export function createRangeControl(min, max, value, logarithmic = false) {
     }
 
     return {
-        "element": input,
-        "logarithmic": logarithmic,
-        "getValue": getValue
+        element: input,
+        logarithmic: logarithmic,
+        getValue: getValue
     };
 }
 
@@ -74,9 +74,8 @@ export function createLinkedNumericControl(rangeControl) {
     });
 
     return {
-        "element": numInput,
-        "linkedTo": rangeControl,
-        "getValue": rangeControl.getValue
+        element: numInput,
+        getValue: rangeControl.getValue
     };
 }
 
@@ -98,8 +97,8 @@ export function createSelectorControl(choices, values, initialValue) {
     if (initialValue !== undefined) selector.value = initialValue;
 
     return {
-        "element": selector,
-        "getValue": () => selector.value
+        element: selector,
+        getValue: () => selector.value
     };
 }
 
@@ -108,11 +107,18 @@ export function createColorControl() {
     input.setAttribute("type", "color");
 
     return {
-        "element": input,
-        "getValue": () => {
+        element: input,
+        getValue: () => {
             const hex = input.value;
             return [hex.slice(1, 2), hex.slice(3, 4), hex.slice(5, 6)].map((x) => parseInt(x, 16) / 255);
         }
+    }
+}
+
+export function labelControl(labelText, control) {
+    return {
+        element: labelDiv(labelText, control.element),
+        getValue: control.getValue
     }
 }
 
@@ -160,8 +166,4 @@ export function labelDiv(labelText, element) {
         createLabel(labelText, element),
         element
     );
-}
-
-export function labelControlDiv(labelText, control) {
-    return labelDiv(labelText, control.element);
 }
