@@ -48,7 +48,7 @@ is possible.
 
 uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
 uniform int Approach; // choices Per-channel Luminance AgX Helium
-uniform int Curve; // choices Clamp Exponential Reinhard Hable Film1890 DoubleGamma
+uniform int Curve; // choices Clamp Exponential Reinhard Hable DoubleGamma
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
 uniform float Hable_B; // logrange min=0.01 max=2.0 default=0.50
@@ -56,14 +56,8 @@ uniform float Hable_C; // logrange min=0.01 max=2.0 default=0.10
 uniform float Hable_D; // logrange min=0.01 max=2.0 default=0.20
 uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
 uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
-uniform float Film1890_Gamma; // logrange min=0.1 max=10.0 default=0.65
-uniform int Film1890_Mode; // choices Linear_Scan_Invert sRGB_Scan_Invert Film_Print Negative
-uniform float Film1890_ScanPostGamma; // logrange min=0.1 max=10.0 default=1.0
-uniform float Film1890_PrintGamma; // logrange min=0.1 max=10.0 default=3.5
-uniform float Film1890_BoostStops; // range min=0.0 max=20.0 default=5.0
-uniform bool Film1890_PrintNormalize; // default=0
-uniform float DoubleGamma_High; // logrange min=0.1 max=10.0 default=0.65
-uniform float DoubleGamma_Low; // logrange min=0.1 max=10.0 default=2.5
+uniform float DoubleGamma_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
+uniform float DoubleGamma_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
 uniform int Luminance_OOBTreatment; // choices None_(Clamp) MaxScale
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
@@ -103,61 +97,12 @@ float hableCurve(float x) {
     return min(1.0, ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F);
 }
 
-float film1890Curve(float x) {
-    // TODO: write something explaining what's going on here.
-    // Simulate idealized (monochromatic) film according to 
-    // equations from Hurter & Driffield (1890) that few people
-    // seem to know about.
-
-    if (
-        Film1890_Mode == FILM1890_MODE_FILM_PRINT 
-        || Film1890_Mode == FILM1890_MODE_NEGATIVE
-    ) {
-        // Boost negative exposure
-        x *= exp2(Film1890_BoostStops);
-    }
-
-    float negativeTransparency = pow(1.0 + x / Film1890_Gamma, -Film1890_Gamma);
-    if (Film1890_Mode == FILM1890_MODE_NEGATIVE) return negativeTransparency;
-
-    if (Film1890_Mode == FILM1890_MODE_LINEAR_SCAN_INVERT) {
-        // Digitally scan and invert negative in linear RGB
-        float scannedValue = 1.0 - negativeTransparency;
-        return pow(scannedValue, Film1890_ScanPostGamma);
-    }
-    if (Film1890_Mode == FILM1890_MODE_SRGB_SCAN_INVERT) {
-        // Digitally scan and invert negative in (approximate) sRGB
-        float scannedValue = 1.0 - pow(negativeTransparency, 1.0/2.2);
-        return pow(scannedValue, 2.2 * Film1890_ScanPostGamma);
-    }
-
-    // Simulate analog film printing
-
-    // Solve for print exposure to map boosted 0.18 to 0.18
-    float printExposure = (pow(0.18, 1.0 / -Film1890_PrintGamma) - 1.0)
-        * Film1890_PrintGamma
-        / pow(1.0 + 0.18 * exp2(Film1890_BoostStops) / Film1890_Gamma, -Film1890_Gamma)
-    ;
-
-    float printReflectivity = pow(
-        1.0 + printExposure * negativeTransparency / Film1890_PrintGamma,
-        -Film1890_PrintGamma
-    );
-
-    float printFloor = pow(1.0 + printExposure / Film1890_PrintGamma, -Film1890_PrintGamma);    
-    if (Film1890_PrintNormalize) {
-        return (printReflectivity - printFloor) / (1.0 - printFloor);
-    }
-    return printReflectivity;
-}
-
 float doubleGammaCurve(float x) {
-    // Film1890 FilmPrint mode with negative and positive exposure
-    // going to infinity in tandem.
-    x *= DoubleGamma_Low * DoubleGamma_High;
+    // TODO: write something explaining what's going on here.
+    x *= DoubleGamma_PrintGamma * DoubleGamma_FilmGamma;
     return pow(
-        1.0 + pow(x, -DoubleGamma_High) / DoubleGamma_Low,
-        -DoubleGamma_Low
+        1.0 + pow(x, -DoubleGamma_FilmGamma) / DoubleGamma_PrintGamma,
+        -DoubleGamma_PrintGamma
     );
 }
 
@@ -167,7 +112,6 @@ float selectedCurve(float x) {
     if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
     if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
-    if (Curve == CURVE_FILM1890) return film1890Curve(x);
     if (Curve == CURVE_DOUBLEGAMMA) return doubleGammaCurve(x);
 }
 
