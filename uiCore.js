@@ -36,7 +36,7 @@ export function createRangeControl(min, max, value, logarithmic = false) {
     input.setAttribute("step", "any");
     input.setAttribute("min", logarithmic ? Math.log(min) : min);
     input.setAttribute("max", logarithmic ? Math.log(max) : max);
-    if (value !== undefined) {
+    if (value !== undefined && value >= min && value <= max) {
         input.value = logarithmic ? Math.log(value) : value;
     } else {
         input.value = logarithmic ?
@@ -79,7 +79,7 @@ export function createLinkedNumericControl(rangeControl) {
     };
 }
 
-export function createSelectorControl(choices, values, initialValue) {
+export function createSelectorControl(choices, values, value) {
     const selector = document.createElement("select");
     choices = choices.slice(0);
     for (const [choiceIndex, choice] of choices.entries()) {
@@ -94,7 +94,7 @@ export function createSelectorControl(choices, values, initialValue) {
         selector.appendChild(option);
     }
 
-    if (initialValue !== undefined) selector.value = initialValue;
+    if (value !== undefined) selector.value = value;
 
     return {
         element: selector,
@@ -102,15 +102,23 @@ export function createSelectorControl(choices, values, initialValue) {
     };
 }
 
-export function createColorControl() {
+function hexToRgb(hex) {
+    return [hex.slice(1, 3), hex.slice(3, 5), hex.slice(5, 7)].map(
+        x => Math.pow(parseInt(x, 16) / 255, 2.2)
+    );
+}
+
+export function createColorControl(hex) {
     const input = document.createElement("input");
     input.setAttribute("type", "color");
+
+    if (hex !== undefined) input.setAttribute("value", hex);
 
     return {
         element: input,
         getValue: () => {
             const hex = input.value;
-            return [hex.slice(1, 2), hex.slice(3, 4), hex.slice(5, 6)].map((x) => parseInt(x, 16) / 255);
+            return hexToRgb(hex);
         }
     }
 }

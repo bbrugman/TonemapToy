@@ -1,19 +1,15 @@
+"use strict";
+
 import * as THREE from 'three';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import shaderPresets from './shaderPresets.js';
-import sampleExrs from './exrs/sampleExrs.js';
 import * as uiC from './uiCore.js';
 import { vertexShaderText, fragmentShaderHeader, fragmentShaderFooter } from './shaderFragments.js';
+import * as CS from './controlSpec.js';
+import scenarios from './scenarios/scenarios.js';
 
 const INITIAL_SHADER_PRESET = "Multi";
-const INITIAL_IMAGE = "Shelf";
-
-const UniformControlType = {
-    CHECKBOX: "CHECKBOX",
-    NUMBER: "NUMBER",
-    RANGE: "RANGE",
-    SELECT: "SELECT"
-};
+const INITIAL_SCENARIO = "Flat Sponza";
 
 function parseUniformDefs(glsl) {
     const result = [];
@@ -27,10 +23,10 @@ function parseUniformDefs(glsl) {
 
         const type = match[1];
         const name = match[2];
-        const uniformData = {
+        const uniformInfo = {
             name: name,
             type: type,
-            control: (type === "bool") ? UniformControlType.CHECKBOX : UniformControlType.NUMBER
+            controlType: (type === "bool") ? CS.ControlType.CHECKBOX : CS.ControlType.NUMBER
         };
 
         const optionComment = match[3]
@@ -39,39 +35,39 @@ function parseUniformDefs(glsl) {
 
             // assume either a "choices" option, "choices <choice1> <choice2> ..."
             if (options[0] === "choices" && options.length > 1 && (type === "int" || type === "uint")) {
-                uniformData.control = UniformControlType.SELECT;
-                uniformData.choices = options.slice(1);
+                uniformInfo.controlType = CS.ControlType.SELECT;
+                uniformInfo.choices = options.slice(1);
             } else { // ...or, options parseable in any order
                 for (const option of options) {
                     if ((option === "range" || option === "logrange") && type === "float") {
-                        uniformData.control = UniformControlType.RANGE;
-                        uniformData.logarithmic = (option === "logrange");
+                        uniformInfo.controlType = CS.ControlType.RANGE;
+                        uniformInfo.logarithmic = (option === "logrange");
                     }
                     else if (option.startsWith("min=")) {
-                        uniformData.min = Number.parseFloat(option.slice("min=".length));
+                        uniformInfo.min = Number.parseFloat(option.slice("min=".length));
                     }
                     else if (option.startsWith("max=")) {
-                        uniformData.max = Number.parseFloat(option.slice("max=".length));
+                        uniformInfo.max = Number.parseFloat(option.slice("max=".length));
                     }
                     else if (option.startsWith("default=")) {
-                        if (uniformData.control === UniformControlType.CHECKBOX) {
+                        if (uniformInfo.controlType === CS.ControlType.CHECKBOX) {
                             // ^ If a later option could change the control type, we couldn't get away with this.
                             // Here, we're OK because there's no option that changes the control type for booleans.
 
                             // checkbox "checked" property is boolean in DOM API
-                            uniformData.defaultValue = !option.slice("default=".length).match(/(false|no|0)/i);
+                            uniformInfo.defaultValue = !option.slice("default=".length).match(/(false|no|0)/i);
                         } else {
                             // Other <input> values are strings.
                             // Maybe we'd want to not couple to DOM API specifics here.
                             // But the alternative in this case is pointless parsing and re-stringifying, so....
-                            uniformData.defaultValue = option.slice("default=".length);
+                            uniformInfo.defaultValue = option.slice("default=".length);
                         }
                     }
                 }
             }
         }
 
-        result.push(uniformData);
+        result.push(uniformInfo);
     }
     return result;
 }
@@ -135,74 +131,32 @@ function updateGLProgram(glState, fragmentShaderSource) {
     gl.useProgram(glState.program);
 }
 
-function updateUniformUI(container, uniformData, prevUniformData) {
+function updateUniformUI(container, uniformData, prevUniformValues) {
+    /* Create controls for uniforms, add getValue property to each */
     container.innerHTML = ""; // clear current controls
 
-    prevUniformData = prevUniformData || {};
+    prevUniformValues = prevUniformValues || {};
 
-    for (const [uniformIndex, uniform] of uniformData.entries()) {
+    for (const uniformInfo of uniformData) {
+        const controlSpec = {
+            type: uniformInfo.controlType,
+            label: uniformInfo.name,
+            min: uniformInfo.min,
+            max: uniformInfo.max,
+            logarithmic: uniformInfo.logarithmic,
+            choices: uniformInfo.choices
+        }
 
-        let prevValue = null;
-        if (uniform.name in prevUniformData && uniform.type == prevUniformData[uniform.name].type) {
+        if (uniformInfo.name in prevUniformValues && uniformInfo.type == prevUniformValues[uniformInfo.name].type) {
             // restore this value if possible
-            prevValue = prevUniformData[uniform.name].value;
-        }
+            controlSpec.value = CS.outToIn(controlSpec.type, prevUniformValues[uniformInfo.name].value);
 
-        switch (uniform.control) {
-            case UniformControlType.CHECKBOX:
-                {
-                    let checked = true;
-                    if ("defaultValue" in uniform) checked = uniform.defaultValue;
-                    if (prevValue !== null) checked = (prevValue === 1);
+            if (!CS.isValueValid(controlSpec)) controlSpec.value = uniformInfo.defaultValue;
+        } else controlSpec.value = uniformInfo.defaultValue;
 
-                    const control = uiC.createLabeledCheckboxControl(uniform.name, checked);
-                    container.appendChild(control.element);
-
-                    uniform.getValue = control.getValue;
-                }
-                break;
-            case UniformControlType.NUMBER:
-                {
-                    let value = "0";
-                    if ("defaultValue" in uniform) value = uniform.defaultValue;
-                    if (prevValue !== null) value = prevValue;
-
-                    const control = uiC.createNumericControl(value);
-                    container.appendChild(uiC.labelControl(uniform.name, control).element);
-
-                    uniform.getValue = control.getValue;
-                }
-                break;
-            case UniformControlType.RANGE:
-                {
-                    let value = undefined; // rely on control init
-                    if ("defaultValue" in uniform) value = uniform.defaultValue;
-
-                    if (prevValue !== null && prevValue >= uniform.min && prevValue <= uniform.max) {
-                        value = prevValue;
-                    }
-
-                    const control = uiC.createRangeControl(uniform.min, uniform.max, value, uniform.logarithmic);
-                    const labeled = uiC.labelControl(uniform.name, control).element;
-                    labeled.appendChild(uiC.createLinkedNumericControl(control).element);
-                    container.appendChild(labeled);
-
-                    uniform.getValue = control.getValue;
-                }
-                break;
-            case UniformControlType.SELECT:
-                {
-                    let value = 0;
-                    if (prevValue !== null && prevValue < uniform.choices.length) {
-                        value = prevValue;
-                    }
-                    const control = uiC.createSelectorControl(uniform.choices, undefined, value);
-                    container.appendChild(uiC.labelControl(uniform.name, control).element);
-
-                    uniform.getValue = control.getValue;
-                }
-                break;
-        }
+        const control = CS.createControl(controlSpec);
+        uniformInfo.getValue = control.getValue;
+        container.appendChild(control.element);
     }
 }
 
@@ -224,7 +178,7 @@ function updateImageFromEXRBuffer(glState, buffer, canvasElement) {
     gl.viewport(0, 0, texData.width, texData.height);
 }
 
-function updateImageFromURL(glState, url, canvasElement) {
+function updateImageFromURL(url, glState, canvasElement) {
     const fileLoader = new THREE.FileLoader();
     fileLoader.responseType = "arraybuffer";
     fileLoader.load(url, (data) => {
@@ -235,26 +189,33 @@ function updateImageFromURL(glState, url, canvasElement) {
 document.addEventListener("DOMContentLoaded", (e) => {
     const canvas = document.getElementsByTagName("canvas")[0];
     const glState = initGLState(canvas);
-    console.log(glState);
 
     let uniformData = null;
+    let scenario = null;
 
     const uniformControls = document.getElementById("uniform-controls");
+    const staticControls = document.getElementById("static-controls");
+    const shaderControls = document.getElementById("shader-controls");
+    const scenarioControls = document.getElementById("scenario-controls");
 
-    function updateShader() {
+    function updateScenario() {
+        updateImageFromURL(scenario.imageUrl, glState, canvas);
+        updateShaderAndUI();
+    }
 
+    function updateShaderAndUI() {
         // current uniform data to restore for uniforms whose name and type doesn't change
-        const prevUniformData = {};
-        for (const userUniform of uniformData || []) {
-            prevUniformData[userUniform.name] = {
-                type: userUniform.type,
-                value: userUniform.getValue()
+        const prevUniformValues = {};
+        for (const uniform of uniformData || []) {
+            prevUniformValues[uniform.name] = {
+                type: uniform.type,
+                value: uniform.getValue()
             }
         }
 
         const userCode = userCodeInput.value;
         uniformData = parseUniformDefs(userCode);
-        updateUniformUI(uniformControls, uniformData, prevUniformData);
+        updateUniformUI(uniformControls, uniformData, prevUniformValues);
 
         // add defines for choice uniforms
         const extraDefineLines = [];
@@ -267,10 +228,43 @@ document.addEventListener("DOMContentLoaded", (e) => {
             }
         }
         const extraDefines = extraDefineLines.join("\n");
+
+        let scenarioFragments = [];
+
+        scenarioControls.innerHTML = "";
+        if (scenario !== null) {
+            for (const scenarioUniform of scenario.uniforms) {
+                // add uniform definition
+                scenarioFragments.push(`uniform ${scenarioUniform.type} ${scenarioUniform.name};`);
+                // create scenario UI
+                const controlSpec = Object.assign({}, scenarioUniform.controlSpec);
+                if (scenarioUniform.name in prevUniformValues) {
+                    console.log(controlSpec);
+                    console.log("Controlspec default:", controlSpec.value);
+                    const prevValue = prevUniformValues[scenarioUniform.name].value;
+                    console.log("Recovered value:", prevValue);
+                    controlSpec.value = CS.outToIn(controlSpec.type, prevValue);
+                    console.log("Recovered value:", controlSpec.value);
+                }
+                const control = CS.createControl(controlSpec);
+                scenarioControls.appendChild(control.element);
+                // add scenario uniforms to uniform data (without control info)
+                uniformData.push({
+                    name: scenarioUniform.name,
+                    type: scenarioUniform.type,
+                    getValue: control.getValue
+                });
+            }
+            scenarioFragments.push(scenario.shaderFragment);
+        }
+
+        const scenarioFragment = scenarioFragments.join("\n");
+
         updateGLProgram(glState, [
             fragmentShaderHeader,
             extraDefines,
             userCode,
+            scenarioFragment,
             fragmentShaderFooter
         ].join("\n"));
     }
@@ -298,6 +292,9 @@ document.addEventListener("DOMContentLoaded", (e) => {
                 case "float":
                     gl.uniform1f(uniformLoc, uniformValue);
                     break;
+                case "vec3":
+                    gl.uniform3f(uniformLoc, uniformValue[0], uniformValue[1], uniformValue[2]);
+                    break;
             }
         }
 
@@ -307,22 +304,27 @@ document.addEventListener("DOMContentLoaded", (e) => {
     }
 
     // create static controls
-    const staticControls = document.getElementById("static-controls");
-    let add = function (labelText, control) {
+    let add = function (container, labelText, control) {
         const div = uiC.labelControl(labelText, control).element;
-        staticControls.appendChild(div);
+        container.appendChild(div);
         return div;
     }
 
-    const imageSelect = uiC.createSelectorControl(Object.keys(sampleExrs), Object.values(sampleExrs), sampleExrs[INITIAL_IMAGE]);
-    imageSelect.element.addEventListener("change", (e) => {
-        updateImageFromURL(glState, imageSelect.getValue(), canvas);
+    const scenarioSelect = uiC.createSelectorControl(Object.keys(scenarios), Object.keys(scenarios), INITIAL_SCENARIO);
+    scenarioSelect.element.addEventListener("change", (e) => {
+        scenario = scenarios[scenarioSelect.getValue()];
+        updateScenario();
     });
-    add("Sample image", imageSelect);
+    add(staticControls, "Scenario", scenarioSelect);
 
     const fileInput = document.createElement("input");
     fileInput.setAttribute("type", "file");
     fileInput.addEventListener("change", (e) => {
+        if (scenario !== null) {
+            scenario = null;
+            updateShaderAndUI();
+        }
+
         const file = e.target.files[0];
         if (!file) {
             return;
@@ -338,7 +340,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
     const exposureControl = uiC.createRangeControl(-10, 15, 0);
     exposureControl.element.setAttribute("step", 0.1);
-    let exposureDiv = add("Exposure", exposureControl);
+    let exposureDiv = add(staticControls, "Exposure", exposureControl);
     exposureDiv.appendChild(uiC.createLinkedNumericControl(exposureControl).element);
 
     const showClampControl = uiC.createLabeledCheckboxControl("Mark clamped regions");
@@ -350,23 +352,23 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const presetSelect = uiC.createSelectorControl(Object.keys(shaderPresets), Object.keys(shaderPresets), INITIAL_SHADER_PRESET);
     presetSelect.element.addEventListener("change", (e) => {
         userCodeInput.value = shaderPresets[presetSelect.getValue()];
-        updateShader();
+        updateShaderAndUI();
     });
-    add("Preset shader", presetSelect);
+    add(shaderControls, "Preset shader", presetSelect);
 
     const userCodeInput = document.createElement("textarea");
     userCodeInput.setAttribute("rows", 15);
     userCodeInput.setAttribute("cols", 72);
     userCodeInput.value = shaderPresets[INITIAL_SHADER_PRESET];
-    staticControls.appendChild(uiC.labelDiv("GLSL", userCodeInput));
+    shaderControls.appendChild(uiC.labelDiv("GLSL", userCodeInput));
 
     const compileButton = uiC.createButton("Compile");
-    compileButton.addEventListener("click", updateShader);
-    staticControls.appendChild(compileButton);
+    compileButton.addEventListener("click", updateShaderAndUI);
+    shaderControls.appendChild(compileButton);
 
     // run
     THREE.Cache.enabled = true;
-    updateImageFromURL(glState, imageSelect.getValue(), canvas);
-    updateShader();
+    scenario = scenarios[INITIAL_SCENARIO];
+    updateScenario();
     requestAnimationFrame(update);
 });

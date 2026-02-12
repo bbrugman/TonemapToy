@@ -10,22 +10,21 @@ void main() {
     vec2 aspectCorrectPos = 2.0 * vec2(_imageAspectRatio / _viewAspectRatio * (_pos.x-0.5), (_pos.y-0.5));
     gl_Position = vec4(aspectCorrectPos, 0, 1);
 }
-`.trim()
+`.trimStart()
 
 export const fragmentShaderHeader = `
 #version 300 es
 precision mediump float;
-`.trim();
 
-export const fragmentShaderFooter = `
 in vec2 _uv;
 out vec4 _outputColor;
 uniform sampler2D _tex;
 uniform float _exposure;
 uniform bool _showClamp;
 uniform bool _pureGammaEncode;
+`.trimStart();
 
-
+export const fragmentShaderFooter = `
 vec3 _sRgbIeotf(vec3 x) {
     // See https://community.acescentral.com/t/srgb-piece-wise-eotf-vs-pure-gamma/4024
     if (_pureGammaEncode) {
@@ -57,4 +56,4 @@ void main() {
     }
     _outputColor = vec4(_sRgbIeotf(clamp(tonemapped, 0.0, 1.0)), 1.0);
 }
-`.trim();
+`.trimStart();
