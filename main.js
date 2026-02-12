@@ -29,38 +29,38 @@ function parseUniformDefs(glsl) {
             controlType: (type === "bool") ? CS.ControlType.CHECKBOX : CS.ControlType.NUMBER
         };
 
-        const optionComment = match[3]
-        if (optionComment !== undefined) { // we have an option comment to parse
-            const options = optionComment.split(/\s+/);
+        const controlComment = match[3]
+        if (controlComment !== undefined) { // we have a control comment to parse
+            const args = controlComment.split(/\s+/);
 
-            // assume either a "choices" option, "choices <choice1> <choice2> ..."
-            if (options[0] === "choices" && options.length > 1 && (type === "int" || type === "uint")) {
+            // assume either "options" arguments, "options <option1> <option2> ..."
+            if (args[0] === "options" && args.length > 1 && (type === "int" || type === "uint")) {
                 uniformInfo.controlType = CS.ControlType.SELECT;
-                uniformInfo.choices = options.slice(1);
-            } else { // ...or, options parseable in any order
-                for (const option of options) {
-                    if ((option === "range" || option === "logrange") && type === "float") {
+                uniformInfo.options = args.slice(1);
+            } else { // ...or, arguments parseable in any order
+                for (const arg of args) {
+                    if ((arg === "range" || arg === "logrange") && type === "float") {
                         uniformInfo.controlType = CS.ControlType.RANGE;
-                        uniformInfo.logarithmic = (option === "logrange");
+                        uniformInfo.logarithmic = (arg === "logrange");
                     }
-                    else if (option.startsWith("min=")) {
-                        uniformInfo.min = Number.parseFloat(option.slice("min=".length));
+                    else if (arg.startsWith("min=")) {
+                        uniformInfo.min = Number.parseFloat(arg.slice("min=".length));
                     }
-                    else if (option.startsWith("max=")) {
-                        uniformInfo.max = Number.parseFloat(option.slice("max=".length));
+                    else if (arg.startsWith("max=")) {
+                        uniformInfo.max = Number.parseFloat(arg.slice("max=".length));
                     }
-                    else if (option.startsWith("default=")) {
+                    else if (arg.startsWith("default=")) {
                         if (uniformInfo.controlType === CS.ControlType.CHECKBOX) {
                             // ^ If a later option could change the control type, we couldn't get away with this.
                             // Here, we're OK because there's no option that changes the control type for booleans.
 
                             // checkbox "checked" property is boolean in DOM API
-                            uniformInfo.defaultValue = !option.slice("default=".length).match(/(false|no|0)/i);
+                            uniformInfo.defaultValue = !arg.slice("default=".length).match(/(false|no|0)/i);
                         } else {
                             // Other <input> values are strings.
                             // Maybe we'd want to not couple to DOM API specifics here.
                             // But the alternative in this case is pointless parsing and re-stringifying, so....
-                            uniformInfo.defaultValue = option.slice("default=".length);
+                            uniformInfo.defaultValue = arg.slice("default=".length);
                         }
                     }
                 }
@@ -144,7 +144,7 @@ function updateUniformUI(container, uniformData, prevUniformValues) {
             min: uniformInfo.min,
             max: uniformInfo.max,
             logarithmic: uniformInfo.logarithmic,
-            choices: uniformInfo.choices
+            options: uniformInfo.options
         }
 
         if (uniformInfo.name in prevUniformValues && uniformInfo.type == prevUniformValues[uniformInfo.name].type) {
@@ -217,14 +217,14 @@ document.addEventListener("DOMContentLoaded", (e) => {
         uniformData = parseUniformDefs(userCode);
         updateUniformUI(uniformControls, uniformData, prevUniformValues);
 
-        // add defines for choice uniforms
+        // add defines for option uniforms
         const extraDefineLines = [];
         for (const userUniform of uniformData) {
-            if (!("choices" in userUniform)) continue;
-            for (const [choiceIndex, choice] of userUniform.choices.entries()) {
-                const choiceSuffix = choice.replace(/[^0-9a-zA-Z_]/, "").toUpperCase()
-                const choiceConstant = userUniform.name.toUpperCase() + "_" + choiceSuffix;
-                extraDefineLines.push(`#define ${choiceConstant} ${choiceIndex}`);
+            if (!("options" in userUniform)) continue;
+            for (const [optionIndex, option] of userUniform.options.entries()) {
+                const optionSuffix = option.replace(/[^0-9a-zA-Z_]/, "").toUpperCase()
+                const optionConstant = userUniform.name.toUpperCase() + "_" + optionSuffix;
+                extraDefineLines.push(`#define ${optionConstant} ${optionIndex}`);
             }
         }
         const extraDefines = extraDefineLines.join("\n");

@@ -18,7 +18,7 @@ value: initial value,
 (RANGE) min: minimum allowed value,
 (RANGE) max: maximum allowed value,
 (RANGE) logarithmic: boolean, use logarithmic slider,
-(SELECT) choices: array of option labels.
+(SELECT) options: array of option labels.
 
 Returns the control.
 */
@@ -40,7 +40,7 @@ export function createControl(spec) {
             }
         case ControlType.SELECT:
             {
-                const control = uiC.createSelectorControl(spec.choices, undefined, spec.value);
+                const control = uiC.createSelectorControl(spec.options, undefined, spec.value);
                 return uiC.labelControl(spec.label, control);
             }
         case ControlType.COLOR:

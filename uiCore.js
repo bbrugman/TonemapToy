@@ -79,19 +79,19 @@ export function createLinkedNumericControl(rangeControl) {
     };
 }
 
-export function createSelectorControl(choices, values, value) {
+export function createSelectorControl(options, values, value) {
     const selector = document.createElement("select");
-    choices = choices.slice(0);
-    for (const [choiceIndex, choice] of choices.entries()) {
-        const option = document.createElement("option");
+    options = options.slice(0);
+    for (const [optionIndex, option] of options.entries()) {
+        const optionEl = document.createElement("option");
         if (values !== undefined) {
-            option.setAttribute("value", values[choiceIndex]);    
+            optionEl.setAttribute("value", values[optionIndex]);    
         } else { 
             // use index as value
-            option.setAttribute("value", choiceIndex);
+            optionEl.setAttribute("value", optionIndex);
         }
-        option.appendChild(document.createTextNode(choice));
-        selector.appendChild(option);
+        optionEl.appendChild(document.createTextNode(option));
+        selector.appendChild(optionEl);
     }
 
     if (value !== undefined) selector.value = value;

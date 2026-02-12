@@ -17,14 +17,14 @@ the uniform name. Comments immediately after the uniform definition
 may be used to customize the control, depending on the type.
 
 For ints or uints,
-// choices <choice1> [choice2] [...]
+// options <option1> [option2] [...]
 creates a selector, where the n-th option yields value n-1.
 The first option will be selected by default.
-For each choice, a macro will be created with the
+For each option, a macro will be created with the
 corresponding value as the token. The identifier is the result of
-taking the uniform name and choice name, stripping illegal 
+taking the uniform name and option name, stripping illegal 
 characters, uppercasing both, and concatenating with an underscore.
-(E.g. UNIFORMNAME_CHOICE1 = 0, UNIFORMNAME_CHOICE2 = 1, ...)
+(E.g. UNIFORMNAME_OPTION1 = 0, UNIFORMNAME_OPTION2 = 1, ...)
 
 For floats, 
 // range min=<min> max=<max>
@@ -47,8 +47,8 @@ is possible.
 */
 
 uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
-uniform int Approach; // choices Per-channel Luminance AgX Helium
-uniform int Curve; // choices Clamp Exponential Reinhard Hable DoubleGamma
+uniform int Approach; // options Per-channel Luminance AgX Helium
+uniform int Curve; // options Clamp Exponential Reinhard Hable DoubleGamma
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
 uniform float Hable_B; // logrange min=0.01 max=2.0 default=0.50
@@ -65,7 +65,7 @@ uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
 uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.15
 uniform float AgX_RotateB; // range min=-0.5 max=0.5 default=-0.08
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.10
-uniform int Helium_Scaler; // choices Smooth Direct Value
+uniform int Helium_Scaler; // options Smooth Direct Value
 uniform float Helium_Smoothness; // logrange min=0.1 max=2.0 default=0.2
 uniform bool Helium_AbneyComp; // default=1
 
@@ -777,7 +777,7 @@ jzazbzToRgb(vec3 jab) // Output: linear Rec.2020
     return vec3(red, green, blue);
 }
 
-uniform int UCS; // choices ICtCP Jzazbz
+uniform int UCS; // options ICtCP Jzazbz
 uniform float blendRatio; // range default=0.6 min=0.0 max=1.0
 uniform float fadeStart; // range default=0.98 min=0.0 max=2.0
 uniform float fadeEnd; // range default=1.16 min=0.0 max=2.0
