@@ -101,8 +101,6 @@ function initGLState(canvas) {
 
 function updateGLProgram(glState, fragmentShaderSource) {
     let gl = glState.glContext;
-
-    console.log("Updating shader...");
     gl.deleteProgram(glState.program);
     gl.deleteShader(glState.fragmentShader);
     glState.fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -123,7 +121,6 @@ function updateGLProgram(glState, fragmentShaderSource) {
         return;
     }
 
-    console.log("Shader program compiled and linked succesfully.");
     const posLoc = gl.getAttribLocation(glState.program, '_pos');
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
@@ -239,12 +236,8 @@ document.addEventListener("DOMContentLoaded", (e) => {
                 // create scenario UI
                 const controlSpec = Object.assign({}, scenarioUniform.controlSpec);
                 if (scenarioUniform.name in prevUniformValues) {
-                    console.log(controlSpec);
-                    console.log("Controlspec default:", controlSpec.value);
                     const prevValue = prevUniformValues[scenarioUniform.name].value;
-                    console.log("Recovered value:", prevValue);
                     controlSpec.value = CS.outToIn(controlSpec.type, prevValue);
-                    console.log("Recovered value:", controlSpec.value);
                 }
                 const control = CS.createControl(controlSpec);
                 scenarioControls.appendChild(control.element);
