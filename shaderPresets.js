@@ -58,7 +58,7 @@ uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
 uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
 uniform float DoubleGamma_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
 uniform float DoubleGamma_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
-uniform int Luminance_OOBTreatment; // choices None_(Clamp) MaxScale
+uniform bool Luminance_PreserveChannelRatios; // default=0
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
 uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
@@ -133,10 +133,10 @@ vec3 tonemap(vec3 x) {
         Luminance-based tonemapping is often said to "preserve hue",
         but the above scaled color can easily have channel values above one,
         even if the curve itself is bounded by one.
-        To "preserve hue" (and saturation) in the hue-saturation-value sense,
+        To "preserve hue" in the channel ratios sense for the clamped color,
         the below is needed in addition.
         */
-        if (Luminance_OOBTreatment == LUMINANCE_OOBTREATMENT_MAXSCALE) {
+        if (Luminance_PreserveChannelRatios) {
             x /= max(1.0, max(x.r, max(x.g, x.b)));
         }
     } else if (Approach == APPROACH_AGX) {
