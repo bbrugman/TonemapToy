@@ -65,8 +65,9 @@ uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
 uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.15
 uniform float AgX_RotateB; // range min=-0.5 max=0.5 default=-0.08
 uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.10
-uniform int Helium_Scaler; // options Smooth Direct Value
-uniform float Helium_Smoothness; // logrange min=0.1 max=2.0 default=0.2
+uniform float Helium_IISNorm; // range min=0.0 max=1.0 default=0.0
+uniform int Helium_ClampMode; // options Length_Smooth Max_Smooth Max_Hard
+uniform float Helium_ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
 uniform bool Helium_AbneyComp; // default=1
 
 #define saturate(x) clamp(x, 0.0, 1.0)
@@ -192,27 +193,34 @@ vec3 tonemap(vec3 x) {
         x = agxMatrixInverse * x;
     } else if (Approach == APPROACH_HELIUM) {
         // https://github.com/bbrugman/Helium-Tonemapper
-        const vec3 white = vec3(1.0, 1.0, 1.0);
+        const vec3 white = vec3(1.0);
 
         float lum = luminance(x);
         float targetLum = selectedCurve(lum);
 
-        // Scale input to within the output cube
-        float maxVal = max(x.r, max(x.g, x.b));
-        float scale;
-        if (Helium_Scaler == HELIUM_SCALER_VALUE) {
-            scale = selectedCurve(maxVal) / maxVal;
+        // Scale input norm
+        float l2 = length(x);
+        float norm = mix(lum, l2, Helium_IISNorm);
+        float scale = selectedCurve(norm) / norm;
+        // Don't exceed target luminance
+        // (if curve has concave upwards section)
+        scale = min(targetLum / lum, scale);
+
+        // Constrain to output cube
+        float clampNorm;
+        if (Helium_ClampMode == HELIUM_CLAMPMODE_LENGTH_SMOOTH) {
+            clampNorm = scale * l2;
         } else {
-            scale = targetLum / lum;
-            float scaledMax = maxVal * scale;
-            if (Helium_Scaler == HELIUM_SCALER_SMOOTH) {
-                float p = pow(scaledMax, 1.0 / Helium_Smoothness);
-                scaledMax = pow(p / (1.0 + p), Helium_Smoothness);
-            } else {
-                scaledMax = min(scaledMax, 1.0);    
-            }
-            scale = scaledMax / maxVal;
+            clampNorm = scale * max(x.r, max(x.g, x.b));
         }
+        float clampedNorm;
+        if (Helium_ClampMode != HELIUM_CLAMPMODE_MAX_HARD) {
+            float p = pow(clampNorm, 1.0 / Helium_ClampSmoothness);
+            clampedNorm = pow(p / (1.0 + p), Helium_ClampSmoothness);
+        } else {
+            clampedNorm = min(1.0, clampNorm);
+        }
+        scale *= clampedNorm / clampNorm;
         vec3 scaled = scale * x;
 
         // Calculate target luminance not accounted for by scaled input
@@ -229,7 +237,7 @@ vec3 tonemap(vec3 x) {
                 + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
                 0.0
             );
-            scaled = scaled + abneyComp * (missingLum / toWhiteLum) * toWhite;
+            scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
             // Recalculate luminance unaccounted for
             scaledLum = luminance(scaled);
             missingLum = targetLum - scaledLum;
@@ -238,7 +246,7 @@ vec3 tonemap(vec3 x) {
         }
 
         // Move towards white for missing luminance
-        x = scaled + (missingLum / toWhiteLum) * toWhite;
+        return scaled + (missingLum / toWhiteLum) * toWhite;
     }
     return x;
 }
