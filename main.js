@@ -99,7 +99,7 @@ function initGLState(canvas) {
     };
 }
 
-function updateGLProgram(glState, fragmentShaderSource) {
+function updateGLProgram(glState, fragmentShaderSource, userCodeStart) {
     let gl = glState.glContext;
     gl.deleteProgram(glState.program);
     gl.deleteShader(glState.fragmentShader);
@@ -107,7 +107,7 @@ function updateGLProgram(glState, fragmentShaderSource) {
     gl.shaderSource(glState.fragmentShader, fragmentShaderSource);
     gl.compileShader(glState.fragmentShader);
     if (!gl.getShaderParameter(glState.fragmentShader, gl.COMPILE_STATUS)) {
-        alert("Fragment shader (your code starting at line 9) failed to compile:\n"
+        alert(`Fragment shader (your code starting at line ${userCodeStart}) failed to compile:\n`
             + gl.getShaderInfoLog(glState.fragmentShader));
         return;
     }
@@ -253,13 +253,15 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
         const scenarioFragment = scenarioFragments.join("\n");
 
+        const combinedHeader = [fragmentShaderHeader, extraDefines].join("\n");
+        const userCodeStart = (combinedHeader.match(/\n/g) || '').length + 2;
+
         updateGLProgram(glState, [
-            fragmentShaderHeader,
-            extraDefines,
+            combinedHeader,
             userCode,
             scenarioFragment,
             fragmentShaderFooter
-        ].join("\n"));
+        ].join("\n"), userCodeStart);
     }
 
     // main loop
