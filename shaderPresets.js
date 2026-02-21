@@ -60,11 +60,14 @@ uniform float DoubleGamma_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
 uniform float DoubleGamma_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
 uniform bool Luminance_PreserveChannelRatios; // default=0
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
-uniform float AgX_InsetR; // range min=0.0 max=1.0 default=0.15
+uniform float AgX_InsetR; // range min=0.001 max=0.999 default=0.15
+uniform float AgX_OutsetR; // range min=-0.5 max=0.999 default=0.15
 uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
-uniform float AgX_InsetG; // range min=0.0 max=1.0 default=0.15
+uniform float AgX_InsetG; // range min=0.001 max=0.999 default=0.15
+uniform float AgX_OutsetG; // range min=-0.5 max=0.999 default=0.15
 uniform float AgX_RotateB; // range min=-0.5 max=0.5 default=-0.08
-uniform float AgX_InsetB; // range min=0.0 max=1.0 default=0.10
+uniform float AgX_InsetB; // range min=0.001 max=0.999 default=0.10
+uniform float AgX_OutsetB; // range min=-0.5 max=0.999 default=0.10
 uniform float Helium_IISNorm; // range min=0.0 max=1.0 default=0.0
 uniform int Helium_ClampMode; // options Length_Smooth Max_Smooth Max_Hard
 uniform float Helium_ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
@@ -144,58 +147,66 @@ vec3 luminanceScale(vec3 x) {
     return x;
 }
 
-vec3 agx(vec3 x) {
+mat3 agxMatrix(vec3 insets, vec3 rotations) {
     /*
-        For some reason, many seem to think of "AgX" as a specific curve
-        and 3x3 matrix, which is remarkable in light of Troy Sobotka's
-        comments at https://github.com/sobotka/AgX-S2O3:
-        "[...] the curve formula employed [...] is detached from the
-        more important mechanisms [...]"
-        "[...] no degree of "precision" [in the curve] can afford much
-        utility."
-        "Any attempt to harness the ideas within this archive should 
-        expose [the] rotation and inset parameters."
+        AgX matrix generator approximation.
 
-        The parameterization here should be similar in spirit to the 
-        original AgX, but creates the 3x3 matrix more directly to avoid
-        costly color geometry math.
+        Any reasonable application using AgX should want to pre-compute
+        these matrices outside a pixel shader. Since that's not
+        possible here and the normal AgX color math is rather complex,
+        a simplified approach is used here where the coordinates of 
+        full-strength primaries of the "inset space" in the reference
+        space are directly manipulated, with the white point corrected
+        after the fact.
     */
     vec3 agxPrimaryR = mix(
         vec3(
-            1.0 - abs(-AgX_RotateR),
-            max(0.0, AgX_RotateR),
-            max(0.0, -AgX_RotateR)
-        ), vec3(1.0), AgX_InsetR
+            1.0 - abs(-rotations.r),
+            max(0.0, rotations.r),
+            max(0.0, -rotations.r)
+        ), vec3(1.0), insets.r
     );
     vec3 agxPrimaryG = mix(
         vec3(
-            max(0.0, -AgX_RotateG),
-            1.0 - abs(-AgX_RotateG),
-            max(0.0, AgX_RotateG)
-        ), vec3(1.0), AgX_InsetG
+            max(0.0, -rotations.g),
+            1.0 - abs(-rotations.g),
+            max(0.0, rotations.g)
+        ), vec3(1.0), insets.g
     );
     vec3 agxPrimaryB = mix(
         vec3(
-            max(0.0, AgX_RotateB),
-            max(0.0, -AgX_RotateB),
-            1.0 - abs(-AgX_RotateB)
-        ), vec3(1.0), AgX_InsetB
+            max(0.0, rotations.b),
+            max(0.0, -rotations.b),
+            1.0 - abs(-rotations.b)
+        ), vec3(1.0), insets.b
     );
-
     mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
-    mat3 agxMatrixInverse = inverse(agxMatrix);
     // Adjust for correct white point
-    vec3 wb = agxMatrixInverse * vec3(1.0);
+    vec3 wb = inverse(agxMatrix) * vec3(1.0);
     agxMatrix[0] *= wb.r;
     agxMatrix[1] *= wb.g;
     agxMatrix[2] *= wb.b;
-    agxMatrixInverse[0] /= wb;
-    agxMatrixInverse[1] /= wb;
-    agxMatrixInverse[2] /= wb;
+    return agxMatrix;
+}
 
-    x = agxMatrix * x;
+vec3 agx(vec3 x) {
+    /*
+        AgX with parameters roughly as in
+        https://github.com/sobotka/AgX-Resolve.
+
+        Beware of parameterization differences however (see above).
+    */
+
+    vec3 rotations = vec3(AgX_RotateR, AgX_RotateG, AgX_RotateB);
+
+    mat3 insetMatrix = agxMatrix(vec3(AgX_InsetR, AgX_InsetG, AgX_InsetB), rotations);
+    x = insetMatrix * x;
+
     x = APPLY(x, selectedCurve);
-    return agxMatrixInverse * x;
+
+    mat3 outsetMatrixInv = agxMatrix(vec3(AgX_OutsetR, AgX_OutsetG, AgX_OutsetB), rotations);
+    mat3 outsetMatrix = inverse(outsetMatrixInv);
+    return outsetMatrix * x;
 }
 
 vec3 helium(vec3 x) {
