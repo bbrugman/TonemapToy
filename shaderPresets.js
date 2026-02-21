@@ -85,8 +85,9 @@ float reinhardCurve(float x) {
     return x / (1.0 + x);
 }
 
-// Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
+
 float hableCurve(float x) {
+    // Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
     float A = Hable_A;
     float B = Hable_B;
     float C = Hable_C;
@@ -122,133 +123,144 @@ float luminance(vec3 linearRGB) {
     return dot(luminanceCoefs, linearRGB);
 }
 
-vec3 tonemap(vec3 x) {
-    if (Approach == APPROACH_PERCHANNEL) {
-        x = APPLY(x, selectedCurve);
-    } else if (Approach == APPROACH_LUMINANCE) {
-        float lum = luminance(x);
-        float targetLum = selectedCurve(lum);
-        x *= targetLum / lum;
-        
-        /*
+vec3 perChannel(vec3 x) {
+    return APPLY(x, selectedCurve);
+}
+
+vec3 luminanceScale(vec3 x) {
+    float lum = luminance(x);
+    float targetLum = selectedCurve(lum);
+    x *= targetLum / lum;
+    /*
         Luminance-based tonemapping is often said to "preserve hue",
-        but the above scaled color can easily have channel values above one,
-        even if the curve itself is bounded by one.
-        To "preserve hue" in the channel ratios sense for the clamped color,
-        the below is needed in addition.
-        */
-        if (Luminance_PreserveChannelRatios) {
-            x /= max(1.0, max(x.r, max(x.g, x.b)));
-        }
-    } else if (Approach == APPROACH_AGX) {
-        /*
-        For some reason, many seem to think of "AgX" as "the specific curve and
-        3x3 matrix Troy Sobotka came up with", which is remarkable in light of his
-        comments at https://github.com/sobotka/AgX-S2O3.
-        "[...] the curve formula employed [...] is detached from the more important
-        mechanisms [...]"
-        "[...] no degree of "precision" [in the curve] can afford much utility."
-        "Any attempt to harness the ideas within this archive should expose [the]
-        rotation and inset parameters."
-
-        The parameterization here should be similar in spirit to the original,
-        but creates the 3x3 matrix more directly to avoid costly color geometry math.
-        */
-
-        vec3 agxPrimaryR = mix(
-            vec3(
-                1.0 - abs(-AgX_RotateR),
-                max(0.0, AgX_RotateR),
-                max(0.0, -AgX_RotateR)
-            ), vec3(1.0), AgX_InsetR
-        );
-        vec3 agxPrimaryG = mix(
-            vec3(
-                max(0.0, -AgX_RotateG),
-                1.0 - abs(-AgX_RotateG),
-                max(0.0, AgX_RotateG)
-            ), vec3(1.0), AgX_InsetG
-        );
-        vec3 agxPrimaryB = mix(
-            vec3(
-                max(0.0, AgX_RotateB),
-                max(0.0, -AgX_RotateB),
-                1.0 - abs(-AgX_RotateB)
-            ), vec3(1.0), AgX_InsetB
-        );
-
-        mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
-        mat3 agxMatrixInverse = inverse(agxMatrix);
-        // Adjust for correct white point
-        vec3 wb = agxMatrixInverse * vec3(1.0);
-        agxMatrix[0] *= wb.r;
-        agxMatrix[1] *= wb.g;
-        agxMatrix[2] *= wb.b;
-        agxMatrixInverse[0] /= wb;
-        agxMatrixInverse[1] /= wb;
-        agxMatrixInverse[2] /= wb;
-
-        x = agxMatrix * x;
-        x = APPLY(x, selectedCurve);
-        x = agxMatrixInverse * x;
-    } else if (Approach == APPROACH_HELIUM) {
-        // https://github.com/bbrugman/Helium-Tonemapper
-        const vec3 white = vec3(1.0);
-
-        float lum = luminance(x);
-        float targetLum = selectedCurve(lum);
-
-        // Scale input norm
-        float l2 = length(x);
-        float norm = mix(lum, l2, Helium_IISNorm);
-        float scale = selectedCurve(norm) / norm;
-        // Don't exceed target luminance
-        // (if curve has concave upwards section)
-        scale = min(targetLum / lum, scale);
-
-        // Constrain to output cube
-        float clampNorm;
-        if (Helium_ClampMode == HELIUM_CLAMPMODE_LENGTH_SMOOTH) {
-            clampNorm = scale * l2;
-        } else {
-            clampNorm = scale * max(x.r, max(x.g, x.b));
-        }
-        float clampedNorm;
-        if (Helium_ClampMode != HELIUM_CLAMPMODE_MAX_HARD) {
-            float p = pow(clampNorm, 1.0 / Helium_ClampSmoothness);
-            clampedNorm = pow(p / (1.0 + p), Helium_ClampSmoothness);
-        } else {
-            clampedNorm = min(1.0, clampNorm);
-        }
-        scale *= clampedNorm / clampNorm;
-        vec3 scaled = scale * x;
-
-        // Calculate target luminance not accounted for by scaled input
-        float scaledLum = scale * lum;
-        float missingLum = targetLum - scaledLum;
-        vec3 toWhite = white - scaled;
-        float toWhiteLum = 1.0 - scaledLum;
-
-        if (Helium_AbneyComp) {
-            // ad hoc Abney effect compensation
-            vec3 abneyComp = vec3(
-                0.0,
-                0.35 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
-                + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
-                0.0
-            );
-            scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
-            // Recalculate luminance unaccounted for
-            scaledLum = luminance(scaled);
-            missingLum = targetLum - scaledLum;
-            toWhite = white - scaled;
-            toWhiteLum = 1.0 - scaledLum;
-        }
-
-        // Move towards white for missing luminance
-        return scaled + (missingLum / toWhiteLum) * toWhite;
+        but the above scaled color can easily have channel values above
+        one, even if the curve itself is bounded by one.
+        To "preserve hue" in the channel ratios sense,
+        the below would be needed in addition.
+    */
+    if (Luminance_PreserveChannelRatios) {
+        x /= max(1.0, max(x.r, max(x.g, x.b)));
     }
     return x;
+}
+
+vec3 agx(vec3 x) {
+    /*
+        For some reason, many seem to think of "AgX" as a specific curve
+        and 3x3 matrix, which is remarkable in light of Troy Sobotka's
+        comments at https://github.com/sobotka/AgX-S2O3:
+        "[...] the curve formula employed [...] is detached from the
+        more important mechanisms [...]"
+        "[...] no degree of "precision" [in the curve] can afford much
+        utility."
+        "Any attempt to harness the ideas within this archive should 
+        expose [the] rotation and inset parameters."
+
+        The parameterization here should be similar in spirit to the 
+        original AgX, but creates the 3x3 matrix more directly to avoid
+        costly color geometry math.
+    */
+    vec3 agxPrimaryR = mix(
+        vec3(
+            1.0 - abs(-AgX_RotateR),
+            max(0.0, AgX_RotateR),
+            max(0.0, -AgX_RotateR)
+        ), vec3(1.0), AgX_InsetR
+    );
+    vec3 agxPrimaryG = mix(
+        vec3(
+            max(0.0, -AgX_RotateG),
+            1.0 - abs(-AgX_RotateG),
+            max(0.0, AgX_RotateG)
+        ), vec3(1.0), AgX_InsetG
+    );
+    vec3 agxPrimaryB = mix(
+        vec3(
+            max(0.0, AgX_RotateB),
+            max(0.0, -AgX_RotateB),
+            1.0 - abs(-AgX_RotateB)
+        ), vec3(1.0), AgX_InsetB
+    );
+
+    mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
+    mat3 agxMatrixInverse = inverse(agxMatrix);
+    // Adjust for correct white point
+    vec3 wb = agxMatrixInverse * vec3(1.0);
+    agxMatrix[0] *= wb.r;
+    agxMatrix[1] *= wb.g;
+    agxMatrix[2] *= wb.b;
+    agxMatrixInverse[0] /= wb;
+    agxMatrixInverse[1] /= wb;
+    agxMatrixInverse[2] /= wb;
+
+    x = agxMatrix * x;
+    x = APPLY(x, selectedCurve);
+    return agxMatrixInverse * x;
+}
+
+vec3 helium(vec3 x) {
+    // https://github.com/bbrugman/Helium-Tonemapper
+    const vec3 white = vec3(1.0);
+
+    float lum = luminance(x);
+    float targetLum = selectedCurve(lum);
+
+    // Scale input norm
+    float l2 = length(x);
+    float norm = mix(lum, l2, Helium_IISNorm);
+    float scale = selectedCurve(norm) / norm;
+    // Don't exceed target luminance
+    // (if curve has concave upwards section)
+    scale = min(targetLum / lum, scale);
+
+    // Constrain to output cube
+    float clampNorm;
+    if (Helium_ClampMode == HELIUM_CLAMPMODE_LENGTH_SMOOTH) {
+        clampNorm = scale * l2;
+    } else {
+        clampNorm = scale * max(x.r, max(x.g, x.b));
+    }
+    float clampedNorm;
+    if (Helium_ClampMode != HELIUM_CLAMPMODE_MAX_HARD) {
+        float p = pow(clampNorm, 1.0 / Helium_ClampSmoothness);
+        clampedNorm = pow(p / (1.0 + p), Helium_ClampSmoothness);
+    } else {
+        clampedNorm = min(1.0, clampNorm);
+    }
+    scale *= clampedNorm / clampNorm;
+    vec3 scaled = scale * x;
+
+    // Calculate target luminance not accounted for by scaled input
+    float scaledLum = scale * lum;
+    float missingLum = targetLum - scaledLum;
+    vec3 toWhite = white - scaled;
+    float toWhiteLum = 1.0 - scaledLum;
+
+    if (Helium_AbneyComp) {
+        // ad hoc Abney effect compensation
+        vec3 abneyComp = vec3(
+            0.0,
+            0.35 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
+            + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
+            0.0
+        );
+        scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
+        // Recalculate luminance unaccounted for
+        scaledLum = luminance(scaled);
+        missingLum = targetLum - scaledLum;
+        toWhite = white - scaled;
+        toWhiteLum = 1.0 - scaledLum;
+    }
+
+    // Move towards white for missing luminance
+    return scaled + (missingLum / toWhiteLum) * toWhite;
+}
+
+vec3 tonemap(vec3 x) {
+    if (Approach == APPROACH_PERCHANNEL) return perChannel(x);
+    if (Approach == APPROACH_LUMINANCE) return luminanceScale(x);
+    if (Approach == APPROACH_AGX) return agx(x);
+    if (Approach == APPROACH_HELIUM) return helium(x);
 }
 `,
     "Unreal":
