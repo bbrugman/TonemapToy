@@ -625,6 +625,17 @@ vec3 tonemap(vec3 x) {
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+uniform float alpha; // range default=0.25 min=0.0 max=1.0
+uniform float midPoint; // range default=0.538 min=0.0 max=1.0
+uniform float linearSection; // range default=0.444 min=0.0 max=1.0
+uniform float toeStrength; // logrange default=1.280 min=0.1 max=10.0
+uniform int UCS; // options ICtCP Jzazbz
+uniform float blendRatio; // range default=0.6 min=0.0 max=1.0
+uniform float fadeStart; // range default=0.98 min=0.0 max=2.0
+uniform float fadeEnd; // range default=1.16 min=0.0 max=2.0
+
+// Further comments are from the example implementation unless indicated otherwise.
+
 // -----------------------------------------------------------------------------
 // Defines the SDR reference white level used in our tone mapping (typically 250 nits).
 // -----------------------------------------------------------------------------
@@ -638,10 +649,6 @@ vec3 tonemap(vec3 x) {
 #define REFERENCE_LUMINANCE 100.0 // cd/m^2 <-> 1.0f
 
 const float peakIntensity = GRAN_TURISMO_SDR_PAPER_WHITE / REFERENCE_LUMINANCE;
-uniform float alpha; // range default=0.25 min=0.0 max=1.0
-uniform float midPoint; // range default=0.538 min=0.0 max=1.0
-uniform float linearSection; // range default=0.444 min=0.0 max=1.0
-uniform float toeStrength; // logrange default=1.280 min=0.1 max=10.0
 
 float GT7_Curve(float x)
 {
@@ -811,11 +818,6 @@ jzazbzToRgb(vec3 jab) // Output: linear Rec.2020
     return vec3(red, green, blue);
 }
 
-uniform int UCS; // options ICtCP Jzazbz
-uniform float blendRatio; // range default=0.6 min=0.0 max=1.0
-uniform float fadeStart; // range default=0.98 min=0.0 max=2.0
-uniform float fadeEnd; // range default=1.16 min=0.0 max=2.0
-
 vec3 rgbToUcs(vec3 rgb) {
     if (UCS == UCS_ICTCP) return rgbToICtCp(rgb);
     return rgbToJzazbz(rgb);
@@ -910,6 +912,15 @@ vec3 tonemap(vec3 x) {
 // Adapted from Alex Fry's 2017 presentation at
 // https://gdcvault.com/play/1024466/High-Dynamic-Range-Color-Grading
 
+uniform float HighSaturation; // range min=0.0 max=1.0 default=0.3
+uniform float DesatPower; // logrange min=0.1 max=10.0 default=1.3
+uniform float LinearSegmentEnd; // range min=0.0 max=1.0 default=0.25
+uniform float BlendFactor; // range min=0.0 max=1.0 default=0.6
+uniform float SaturationBoost; // range min=0.0 max=1.0 default=0.3
+uniform float HighSatBoostFactor; // range min=0.0 max=1.0 default=0.5
+
+// Further comments are from the example code unless indicated otherwise.
+
 const float PQ_constant_N = (2610.0 / 4096.0 / 4.0);
 const float PQ_constant_M = (2523.0 / 4096.0 * 128.0);
 const float PQ_constant_C1 = (3424.0 / 4096.0);
@@ -988,13 +999,6 @@ vec3 rangeCompress(vec3 val, float threshold) {
     );
 }
 
-uniform float HighSaturation; // range min=0.0 max=1.0 default=0.3
-uniform float DesatPower; // logrange min=0.1 max=10.0 default=1.3
-uniform float LinearSegmentEnd; // range min=0.0 max=1.0 default=0.25
-uniform float BlendFactor; // range min=0.0 max=1.0 default=0.6
-uniform float SaturationBoost; // range min=0.0 max=1.0 default=0.3
-uniform float HighSatBoostFactor; // range min=0.0 max=1.0 default=0.5
-
 vec3 applyHuePreservingShoulder(vec3 col) {
     vec3 ictcp = RGBToICtCp(col);
 
@@ -1055,7 +1059,6 @@ vec3 applyHuePreservingShoulder(vec3 col) {
 vec3 tonemap(vec3 x) {
     return applyHuePreservingShoulder(x);
 }
-
 `
 };
 
