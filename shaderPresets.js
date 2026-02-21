@@ -881,6 +881,158 @@ vec3 tonemap(vec3 x) {
     */
     return tonemapped2020 * Rec2020_to_Rec709;
 }
+`,
+    "Frostbite 2017":
+`
+// Adapted from Alex Fry's 2017 presentation at
+// https://gdcvault.com/play/1024466/High-Dynamic-Range-Color-Grading
+
+const float PQ_constant_N = (2610.0 / 4096.0 / 4.0);
+const float PQ_constant_M = (2523.0 / 4096.0 * 128.0);
+const float PQ_constant_C1 = (3424.0 / 4096.0);
+const float PQ_constant_C2 = (2413.0 / 4096.0 * 32.0);
+const float PQ_constant_C3 = (2392.0 / 4096.0 * 32.0);
+
+vec3 linearToPQ(vec3 linearCol, float maxPqValue) {
+    linearCol /= maxPqValue;
+    vec3 colToPow = pow(linearCol, vec3(PQ_constant_N)); // 24
+    vec3 numerator = PQ_constant_C1 + PQ_constant_C2*colToPow;
+    vec3 denominator = 1.0 + PQ_constant_C3*colToPow;
+    vec3 pq = pow(numerator / denominator, vec3(PQ_constant_M));
+    return pq;
+}
+
+vec3 PQtoLinear(vec3 linearCol, float maxPqValue) {
+    vec3 colToPow = pow(linearCol, vec3(1.0 / PQ_constant_M));
+    vec3 numerator = max(colToPow - PQ_constant_C1, 0.0);
+    vec3 denominator = PQ_constant_C2 - (PQ_constant_C3 * colToPow);
+    vec3 linearColor = pow(numerator / denominator, vec3(1.0 / PQ_constant_N));
+    linearColor *= maxPqValue;
+    return linearColor;
+}
+
+const mat3 RGBToLMS = mat3(
+    0.4124564, 0.3575761, 0.1804375,
+    0.2126729, 0.7151522, 0.0721750,
+    0.0193339, 0.1191920, 0.9503041
+) * mat3(
+    0.3592, 0.6976, -0.0358,
+    -0.1922, 1.1004, 0.0755,
+    0.0070, 0.0749, 0.8434
+);
+
+const mat3 LMSToRGB = inverse(RGBToLMS);
+
+vec3 RGBToICtCp(vec3 col) {
+    col = col * RGBToLMS;
+    col = linearToPQ(max(vec3(0.0), col), 100.0);
+    const mat3 mat = mat3(
+        0.5000, 0.5000, 0.0000,
+        1.6137, -3.3234, 1.7097,
+        4.3780, -4.2455, -0.1325
+    );
+    return col * mat;
+}
+
+vec3 ICtCpToRGB(vec3 col) {
+    const mat3 mat = mat3(
+        1.0, 0.00860514569398152, 0.11103560447547328,
+        1.0, -0.00860514569398152, -0.11103560447547328,
+        1.0, 0.56004885956263900, -0.32063747023212210
+    );
+    col = col * mat;
+    col = PQtoLinear(col, 100.0);
+    return col * LMSToRGB;
+}
+
+float rangeCompress(float x) {
+    return 1.0 - exp(-x);
+}
+
+float rangeCompress(float val, float threshold) {
+    float v1 = val;
+    float v2 = threshold + (1.0 - threshold) * rangeCompress(
+        (val - threshold) / (1.0 - threshold)
+    );
+    return val < threshold ? v1 : v2;
+}
+
+vec3 rangeCompress(vec3 val, float threshold) {
+    return vec3(
+        rangeCompress(val.x, threshold),
+        rangeCompress(val.y, threshold),
+        rangeCompress(val.z, threshold)
+    );
+}
+
+uniform float HighSaturation; // range min=0.0 max=1.0 default=0.3
+uniform float DesatPower; // logrange min=0.1 max=10.0 default=1.3
+uniform float LinearSegmentEnd; // range min=0.0 max=1.0 default=0.25
+uniform float BlendFactor; // range min=0.0 max=1.0 default=0.6
+uniform float SaturationBoost; // range min=0.0 max=1.0 default=0.3
+uniform float HighSatBoostFactor; // range min=0.0 max=1.0 default=0.5
+
+vec3 applyHuePreservingShoulder(vec3 col) {
+    vec3 ictcp = RGBToICtCp(col);
+
+    // Hue-preserving range compression requires desaturation in order 
+    // to achieve a natural look.
+    // We adaptively desaturate the input based on its luminance.
+    float saturationAmount = pow(
+        smoothstep(1.0, HighSaturation, ictcp.x),
+        DesatPower
+    );
+    col = ICtCpToRGB(ictcp * vec3(1, vec2(saturationAmount)));
+
+    // Only compress luminance starting at a certain point.
+    // Dimmer inputs are passed through without modification.
+    float linearSegmentEnd = LinearSegmentEnd;
+
+    // Hue-preserving mapping
+    float maxCol = max(col.x, max(col.y, col.z));
+    float mappedMax = rangeCompress(maxCol, linearSegmentEnd);
+    vec3 compressedHuePreserving = col * mappedMax / maxCol;
+
+    // Non-hue preserving mapping
+    vec3 perChannelCompressed = rangeCompress(col, linearSegmentEnd);
+
+    // Combine hue-preserving and non-hue-preserving colors.
+    // Absolute hue preservation looks unnatural, as bright colors
+    // *appear* to have been hue shifted.
+    // Actually doing some amount of hue shifting looks more pleasing
+    col = mix(perChannelCompressed, compressedHuePreserving, BlendFactor);
+
+    vec3 ictcpMapped = RGBToICtCp(col);
+
+    // Smoothly ramp off saturation as brightness increases,
+    // but keep some even for very bright input
+    float postCompressionSaturationBoost = SaturationBoost * smoothstep(
+        1.0, HighSatBoostFactor, ictcp.x
+    );
+
+    // Re-introduce some hue from the pre-compression color.
+    // Something similar could be accomplished by delaying the 
+    // luma-dependent desaturation before range compression.
+    // Doing it here however does a better job of preserving perceptual
+    // luminance of highly saturated colors.
+    // Because in the hue-preserving path we only range-compress the 
+    // max channel, saturated colors lose luminance.
+    // By desaturating them more aggressively first, compressing, and 
+    // then re-adding some saturation, we can preserve their brightness
+    // to a greater extent.
+    ictcpMapped.yz = mix(
+        ictcpMapped.yz,
+        ictcp.yz * ictcpMapped.x / max(1e-3, ictcp.x),
+        postCompressionSaturationBoost
+    );
+    col = ICtCpToRGB(ictcpMapped);
+    return col;
+}
+
+vec3 tonemap(vec3 x) {
+    return applyHuePreservingShoulder(x);
+}
+
 `
 };
 
