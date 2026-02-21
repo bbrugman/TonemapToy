@@ -358,6 +358,7 @@ uniform float UE_BlueCorrection; // range default=1.0 min=0.0 max=1.0
 uniform bool ACES_RRT_GlowModule; // default=1
 uniform bool ACES_RRT_RedModule; // default=1
 uniform bool ACES_RRT_Desaturate; // default=1
+uniform bool ACES_ODT_SurroundComp_Desaturate; // default=1
 uniform float UE_CurveSlope; // range default=0.88 min=0.0 max=1.0
 uniform float UE_CurveToe; // range default=0.55 min=0.0, max=1.0
 uniform float UE_CurveShoulder; // range default=0.26 min=0.0, max=1.0
@@ -521,7 +522,9 @@ vec3 tonemap(vec3 x) {
     // Unreal Engine applies this desaturation despite not applying
     // the "dark to dim surround" gamma adjustment in the ACES 1.2
     // sRGB Output Transform that justifies it there.
-    x = mix(vec3(dot(x, AP1_RGB2Y)), x, 0.93);
+    if (ACES_ODT_SurroundComp_Desaturate) {
+        x = mix(vec3(dot(x, AP1_RGB2Y)), x, 0.93);
+    }
 
     x = max(x, 0.0);
 
