@@ -250,8 +250,8 @@ vec3 helium(vec3 x) {
     if (Helium_AbneyComp) {
         // ad hoc Abney effect compensation
         vec3 abneyComp = vec3(
-            0.0,
-            0.35 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
+            0.6 * scaled.g * pow(1.0 - scaled.b, 4.0),
+            0.7 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
             + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
             0.0
         );
