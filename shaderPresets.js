@@ -1081,7 +1081,7 @@ uniform float BlueToGreenSens; // range min=0.0 max=1.0 default=0.08
 uniform float BlueToRedSens; // range min=0.0 max=1.0 default=0.01
 uniform bool ShowUnphysicalDyes; // default=0
 uniform int DyeMatrixDesatWeights; // options Uniform Luminance
-uniform float RedDyePurity; // range min=0.0 max=1.0 default=0.85
+uniform float RedDyePurity; // range min=0.0 max=1.0 default=0.80
 uniform float GreenDyePurity; // range min=0.0 max=1.0 default=0.55
 uniform float BlueDyePurity; // range min=0.0 max=1.0 default=0.65
 uniform bool ShowNegative; // default=0
