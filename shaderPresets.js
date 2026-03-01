@@ -59,6 +59,7 @@ uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
 uniform float DoubleGamma_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
 uniform float DoubleGamma_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
 uniform bool Luminance_PreserveChannelRatios; // default=0
+uniform bool AgX_OutsetEqualsInset; // default=0
 uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
 uniform float AgX_InsetR; // range min=0.001 max=0.999 default=0.15
 uniform float AgX_OutsetR; // range min=-0.5 max=0.999 default=0.15
@@ -204,7 +205,12 @@ vec3 agx(vec3 x) {
 
     x = APPLY(x, selectedCurve);
 
-    mat3 outsetMatrixInv = agxMatrix(vec3(AgX_OutsetR, AgX_OutsetG, AgX_OutsetB), rotations);
+    mat3 outsetMatrixInv;
+    if (AgX_OutsetEqualsInset) {
+        outsetMatrixInv = agxMatrix(vec3(AgX_InsetR, AgX_InsetG, AgX_InsetB), rotations);
+    } else {
+        outsetMatrixInv = agxMatrix(vec3(AgX_OutsetR, AgX_OutsetG, AgX_OutsetB), rotations);
+    }
     mat3 outsetMatrix = inverse(outsetMatrixInv);
     return outsetMatrix * x;
 }
