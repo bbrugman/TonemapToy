@@ -1,12 +1,6 @@
 let shaders = {
     "Minimal":
 `
-vec3 tonemap(vec3 x) {
-    return x;
-}
-`,
-    "Multi":
-`
 /*
 For the shader to work, you must provide a function called "tonemap", 
 taking linear Rec. 709 input (already scaled by exposure) as a vec3 
@@ -34,21 +28,24 @@ creates a range input with the indicated bounds.
 
 To specify a default value (except for selectors),
 specify the "default=" option, e.g.
-// range min=0 max=10 default=3.14
+// range min=0.0 max=10.0 default=3.14
 
 Booleans are true by default, but
 // default=0
 // default=false
 // default=no
 all change the default value to false.
-
-This example shader shows off a few tonemappers and demonstrates what 
-is possible.
 */
 
-uniform float Contrast; // logrange min=0.1 max=10.0 default=1.0
-uniform int Approach; // options Per-channel Luminance AgX Helium
-uniform int Curve; // options Clamp Exponential Reinhard Hable DoubleGamma
+vec3 tonemap(vec3 x) {
+    return x;
+}
+`,
+    "Multi":
+`
+uniform int Approach; // options Per-channel Max Luminance "ACES" Godot_AgX
+uniform int Curve; // options Clamp Exponential Reinhard Hable Filmic_(H&D1890)
+uniform float InContrast; // logrange min=0.1 max=10.0 default=1.0
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
 uniform float Hable_B; // logrange min=0.01 max=2.0 default=0.50
@@ -56,25 +53,8 @@ uniform float Hable_C; // logrange min=0.01 max=2.0 default=0.10
 uniform float Hable_D; // logrange min=0.01 max=2.0 default=0.20
 uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
 uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
-uniform float DoubleGamma_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
-uniform float DoubleGamma_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
-uniform bool Luminance_PreserveChannelRatios; // default=0
-uniform bool AgX_OutsetEqualsInset; // default=0
-uniform float AgX_RotateR; // range min=-0.5 max=0.5 default=0.04
-uniform float AgX_InsetR; // range min=0.001 max=0.999 default=0.15
-uniform float AgX_OutsetR; // range min=-0.5 max=0.999 default=0.15
-uniform float AgX_RotateG; // range min=-0.5 max=0.5 default=-0.04
-uniform float AgX_InsetG; // range min=0.001 max=0.999 default=0.15
-uniform float AgX_OutsetG; // range min=-0.5 max=0.999 default=0.15
-uniform float AgX_RotateB; // range min=-0.5 max=0.5 default=-0.08
-uniform float AgX_InsetB; // range min=0.001 max=0.999 default=0.10
-uniform float AgX_OutsetB; // range min=-0.5 max=0.999 default=0.10
-uniform float Helium_IISNorm; // range min=0.0 max=1.0 default=0.0
-uniform int Helium_ClampMode; // options Length_Smooth Max_Smooth Max_Hard
-uniform float Helium_ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
-uniform bool Helium_AbneyComp; // default=1
+uniform float HD1890_Gamma; // logrange min=0.1 max=10.0 default=0.65
 
-#define saturate(x) clamp(x, 0.0, 1.0)
 #define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))
 
 float clampCurve(float x) {
@@ -89,7 +69,6 @@ float reinhardCurve(float x) {
     return x / (1.0 + x);
 }
 
-
 float hableCurve(float x) {
     // Adapted from http://filmicworlds.com/blog/filmic-tonemapping-operators/
     float A = Hable_A;
@@ -103,22 +82,25 @@ float hableCurve(float x) {
     return min(1.0, ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F);
 }
 
-float doubleGammaCurve(float x) {
-    // TODO: write something explaining what's going on here.
-    x *= DoubleGamma_PrintGamma * DoubleGamma_FilmGamma;
-    return pow(
-        1.0 + pow(x, -DoubleGamma_FilmGamma) / DoubleGamma_PrintGamma,
-        -DoubleGamma_PrintGamma
-    );
+float filmCurve(float x) {
+    /*
+        The result of taking the film density curve derived by Hurter & Driffield (1890),
+        letting plate transparency go to zero,
+        and converting from "optical density" to one minus transparency
+        ("linear scan and invert").
+        TODO: write something explaining this.
+    */
+    return 1.0 - pow(1.0 + x, -HD1890_Gamma);
 }
 
 float selectedCurve(float x) {
-    x = 0.18 * pow(x / 0.18, Contrast);
+    // Contrast works with any curve
+    x = 0.18 * pow(x / 0.18, InContrast);
     if (Curve == CURVE_CLAMP) return clampCurve(x);
     if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
     if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
-    if (Curve == CURVE_DOUBLEGAMMA) return doubleGammaCurve(x);
+    if (Curve == CURVE_FILMIC_HD1890) return filmCurve(x) / filmCurve(WhiteClip);
 }
 
 float luminance(vec3 linearRGB) {
@@ -131,6 +113,13 @@ vec3 perChannel(vec3 x) {
     return APPLY(x, selectedCurve);
 }
 
+vec3 maxScale(vec3 x) {
+    float max = max(x.r, max(x.g, x.b));
+    float targetMax = selectedCurve(max);
+    x *= targetMax / max;
+    return x;
+}
+
 vec3 luminanceScale(vec3 x) {
     float lum = luminance(x);
     float targetLum = selectedCurve(lum);
@@ -139,148 +128,68 @@ vec3 luminanceScale(vec3 x) {
         Luminance-based tonemapping is often said to "preserve hue",
         but the above scaled color can easily have channel values above
         one, even if the curve itself is bounded by one.
-        To "preserve hue" in the channel ratios sense,
-        the below would be needed in addition.
+        Therefore "hue" in the sense of channel ratios is not actually
+        preserved after clamp to display range.
     */
-    if (Luminance_PreserveChannelRatios) {
-        x /= max(1.0, max(x.r, max(x.g, x.b)));
-    }
     return x;
 }
 
-mat3 agxMatrix(vec3 insets, vec3 rotations) {
+vec3 pseudoAces(vec3 x) {
     /*
-        AgX matrix generator approximation.
+        In the video game industry, many use the words "ACES tonemapping"
+        or "ACES Filmic" to refer to some kind of approximation to the
+        ACES 1 sRGB Output Transform. 
+        This often means applying a curve per-channel in per-channel in
+        (approximate) linear AP1 rather than in linearized display space,
+        skipping all other RRT and ODT steps.
 
-        Any reasonable application using AgX should want to pre-compute
-        these matrices outside a pixel shader. Since that's not
-        possible here and the normal AgX color math is rather complex,
-        a simplified approach is used here where the coordinates of 
-        full-strength primaries of the "inset space" in the reference
-        space are directly manipulated, with the white point corrected
-        after the fact.
     */
-    vec3 agxPrimaryR = mix(
-        vec3(
-            1.0 - abs(-rotations.r),
-            max(0.0, rotations.r),
-            max(0.0, -rotations.r)
-        ), vec3(1.0), insets.r
-    );
-    vec3 agxPrimaryG = mix(
-        vec3(
-            max(0.0, -rotations.g),
-            1.0 - abs(-rotations.g),
-            max(0.0, rotations.g)
-        ), vec3(1.0), insets.g
-    );
-    vec3 agxPrimaryB = mix(
-        vec3(
-            max(0.0, rotations.b),
-            max(0.0, -rotations.b),
-            1.0 - abs(-rotations.b)
-        ), vec3(1.0), insets.b
-    );
-    mat3 agxMatrix = mat3(agxPrimaryR, agxPrimaryG, agxPrimaryB);
-    // Adjust for correct white point
-    vec3 wb = inverse(agxMatrix) * vec3(1.0);
-    agxMatrix[0] *= wb.r;
-    agxMatrix[1] *= wb.g;
-    agxMatrix[2] *= wb.b;
-    return agxMatrix;
-}
+    const mat3 Rec709_to_AP1 = mat3(
+        0.613164477, 0.339466431, 0.047369092,
+        0.070204699, 0.916347730, 0.013447572,
+        0.020623075, 0.109585185, 0.869791740
+    ); // CAT02 chromatic adaptation from ACEScg
 
-vec3 agx(vec3 x) {
-    /*
-        AgX with parameters roughly as in
-        https://github.com/sobotka/AgX-Resolve.
-
-        Beware of parameterization differences however (see above).
-    */
-
-    vec3 rotations = vec3(AgX_RotateR, AgX_RotateG, AgX_RotateB);
-
-    mat3 insetMatrix = agxMatrix(vec3(AgX_InsetR, AgX_InsetG, AgX_InsetB), rotations);
-    x = insetMatrix * x;
-
+    x *= Rec709_to_AP1;
     x = APPLY(x, selectedCurve);
 
-    mat3 outsetMatrixInv;
-    if (AgX_OutsetEqualsInset) {
-        outsetMatrixInv = agxMatrix(vec3(AgX_InsetR, AgX_InsetG, AgX_InsetB), rotations);
-    } else {
-        outsetMatrixInv = agxMatrix(vec3(AgX_OutsetR, AgX_OutsetG, AgX_OutsetB), rotations);
-    }
-    mat3 outsetMatrix = inverse(outsetMatrixInv);
-    return outsetMatrix * x;
+    const mat3 AP1_to_Rec709 = inverse(Rec709_to_AP1);
+    x *= AP1_to_Rec709;
+    return x;
 }
 
-vec3 helium(vec3 x) {
-    // https://github.com/bbrugman/Helium-Tonemapper
-    const vec3 white = vec3(1.0);
+vec3 godotAgX(vec3 x) {
+    /*
+        Godot's "AgX" mode uses the Blender AgX matrices.
+    */
+    const mat3 Rec709_to_AgX = mat3(
+        0.544814746488245, 0.140416948464053, 0.0888104196149096,
+        0.373787398372697, 0.754137554567394, 0.178871756420858,
+        0.0813978551390581, 0.105445496968552, 0.732317823964232
+    );
 
-    float lum = luminance(x);
-    float targetLum = selectedCurve(lum);
+    x = Rec709_to_AgX * x;
+    x = APPLY(x, selectedCurve);
 
-    // Scale input norm
-    float l2 = length(x);
-    float norm = mix(lum, l2, Helium_IISNorm);
-    float scale = selectedCurve(norm) / norm;
-    // Don't exceed target luminance
-    // (if curve has concave upwards section)
-    scale = min(targetLum / lum, scale);
+    const mat3 AgX_to_Rec709 = mat3(
+        1.96488741169489, -0.299313364904742, -0.164352742528393,
+        -0.855988495690215, 1.32639796461980, -0.238183969428088,
+        -0.108898916004672, -0.0270845997150571, 1.40253671195648
+    );
 
-    // Constrain to output cube
-    float clampNorm;
-    if (Helium_ClampMode == HELIUM_CLAMPMODE_LENGTH_SMOOTH) {
-        clampNorm = scale * l2;
-    } else {
-        clampNorm = scale * max(x.r, max(x.g, x.b));
-    }
-    float clampedNorm;
-    if (Helium_ClampMode != HELIUM_CLAMPMODE_MAX_HARD) {
-        float p = pow(clampNorm, 1.0 / Helium_ClampSmoothness);
-        clampedNorm = pow(p / (1.0 + p), Helium_ClampSmoothness);
-    } else {
-        clampedNorm = min(1.0, clampNorm);
-    }
-    scale *= clampedNorm / clampNorm;
-    vec3 scaled = scale * x;
-
-    // Calculate target luminance not accounted for by scaled input
-    float scaledLum = scale * lum;
-    float missingLum = targetLum - scaledLum;
-    vec3 toWhite = white - scaled;
-    float toWhiteLum = 1.0 - scaledLum;
-
-    if (Helium_AbneyComp) {
-        // ad hoc Abney effect compensation
-        vec3 abneyComp = vec3(
-            0.6 * scaled.g * pow(1.0 - scaled.b, 4.0),
-            0.7 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
-            + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
-            0.0
-        );
-        scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
-        // Recalculate luminance unaccounted for
-        scaledLum = luminance(scaled);
-        missingLum = targetLum - scaledLum;
-        toWhite = white - scaled;
-        toWhiteLum = 1.0 - scaledLum;
-    }
-
-    // Move towards white for missing luminance
-    return scaled + (missingLum / toWhiteLum) * toWhite;
+    x = AgX_to_Rec709 * x;
+    return x;
 }
-
+    
 vec3 tonemap(vec3 x) {
     if (Approach == APPROACH_PERCHANNEL) return perChannel(x);
+    if (Approach == APPROACH_MAX) return maxScale(x);
     if (Approach == APPROACH_LUMINANCE) return luminanceScale(x);
-    if (Approach == APPROACH_AGX) return agx(x);
-    if (Approach == APPROACH_HELIUM) return helium(x);
+    if (Approach == APPROACH_ACES) return pseudoAces(x);
+    if (Approach == APPROACH_GODOT_AGX) return godotAgX(x);
 }
 `,
-    "Unreal":
+    "Unreal Engine":
 `
 /*
 This shader contains GLSL translations of 
@@ -601,7 +510,7 @@ vec3 tonemap(vec3 x) {
     return PBRNeutralToneMapping(x);
 }
 `,
-    "GT7":
+    "Gran Turismo 7":
 `
 // Based on
 // https://blog.selfshadow.com/publications/s2025-shading-course/pdi/s2025_pbs_pdi_slides_v1.1.pdf
@@ -1066,6 +975,88 @@ vec3 tonemap(vec3 x) {
     return applyHuePreservingShoulder(x);
 }
 `,
+    "Helium":
+`
+// https://github.com/bbrugman/Helium-Tonemapper
+
+uniform float Curve_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
+uniform float Curve_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
+uniform float IISNorm; // range min=0.0 max=1.0 default=0.0
+uniform int ClampMode; // options Length_Smooth Max_Smooth Max_Hard
+uniform float ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
+uniform bool AbneyComp; // default=1
+
+float luminance(vec3 linearRGB) {
+    // Assuming Rec. 709 primaries
+    const vec3 luminanceCoefs = vec3(0.2126, 0.7125, 0.0722);
+    return dot(luminanceCoefs, linearRGB);
+}
+
+float heliumCurve(float x) {
+    x *= Curve_PrintGamma * Curve_FilmGamma;
+    return pow(
+        1.0 + pow(x, -Curve_FilmGamma) / Curve_PrintGamma,
+        -Curve_PrintGamma
+    );
+}
+
+vec3 tonemap(vec3 x) {
+    const vec3 white = vec3(1.0);
+
+    float lum = luminance(x);
+    float targetLum = heliumCurve(lum);
+
+    // Scale input norm
+    float l2 = length(x);
+    float norm = mix(lum, l2, IISNorm);
+    float scale = heliumCurve(norm) / norm;
+    // Don't exceed target luminance
+    // (if curve has concave upwards section)
+    scale = min(targetLum / lum, scale);
+
+    // Constrain to output cube
+    float clampNorm;
+    if (ClampMode == CLAMPMODE_LENGTH_SMOOTH) {
+        clampNorm = scale * l2;
+    } else {
+        clampNorm = scale * max(x.r, max(x.g, x.b));
+    }
+    float clampedNorm;
+    if (ClampMode != CLAMPMODE_MAX_HARD) {
+        float p = pow(clampNorm, 1.0 / ClampSmoothness);
+        clampedNorm = pow(p / (1.0 + p), ClampSmoothness);
+    } else {
+        clampedNorm = min(1.0, clampNorm);
+    }
+    scale *= clampedNorm / clampNorm;
+    vec3 scaled = scale * x;
+
+    // Calculate target luminance not accounted for by scaled input
+    float scaledLum = scale * lum;
+    float missingLum = targetLum - scaledLum;
+    vec3 toWhite = white - scaled;
+    float toWhiteLum = 1.0 - scaledLum;
+
+    if (AbneyComp) {
+        // ad hoc Abney effect compensation
+        vec3 abneyComp = vec3(
+            0.6 * scaled.g * pow(1.0 - scaled.b, 4.0),
+            0.7 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
+            + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
+            0.0
+        );
+        scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
+        // Recalculate luminance unaccounted for
+        scaledLum = luminance(scaled);
+        missingLum = targetLum - scaledLum;
+        toWhite = white - scaled;
+        toWhiteLum = 1.0 - scaledLum;
+    }
+
+    // Move towards white for missing luminance
+    return scaled + (missingLum / toWhiteLum) * toWhite;
+}
+`,
     "FilmSim":
 `
 // Minimal photographic film simulation.
@@ -1124,7 +1115,7 @@ vec3 tonemap(vec3 x) {
     /*
         The inverse matrix optimally preserves chromaticity and saturation,
         but is generally unphysical due to negative values (representing 
-        dyes that strengthen rather than absord light passing through).
+        dyes that strengthen rather than absorb light passing through).
         Hence the below "dye purity" adjustment.
     */
     vec3 desatDyeAbsorption = vec3(1./3.);
