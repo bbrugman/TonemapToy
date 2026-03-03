@@ -219,7 +219,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
         for (const userUniform of uniformData) {
             if (!("options" in userUniform)) continue;
             for (const [optionIndex, option] of userUniform.options.entries()) {
-                const optionSuffix = option.replace(/[^0-9a-zA-Z_]/, "").toUpperCase()
+                const optionSuffix = option.replaceAll(/[^0-9a-zA-Z_]/g, "").toUpperCase();
                 const optionConstant = userUniform.name.toUpperCase() + "_" + optionSuffix;
                 extraDefineLines.push(`#define ${optionConstant} ${optionIndex}`);
             }
