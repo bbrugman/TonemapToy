@@ -1108,7 +1108,6 @@ vec3 tonemap(vec3 x) {
     );
 
     vec3 layerExposure = x * sensMatrix;
-    // The below equation is from Hurter & Driffield (1890).
     vec3 densities = FilmGamma * log(1. + layerExposure / FilmGamma);
 
     mat3 dyeAbsorptionMatrix = inverse(sensMatrix);
