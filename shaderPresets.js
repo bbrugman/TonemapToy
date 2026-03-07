@@ -980,7 +980,7 @@ vec3 tonemap(vec3 x) {
 // https://github.com/bbrugman/Helium-Tonemapper
 
 uniform float Curve_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
-uniform float Curve_PrintGamma; // logrange min=0.1 max=10.0 default=2.5
+uniform float Curve_DigitalGamma; // logrange min=0.1 max=10.0 default=1.2
 uniform float IISNorm; // range min=0.0 max=1.0 default=0.0
 uniform int ClampMode; // options Length_Smooth Max_Smooth Max_Hard
 uniform float ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
@@ -993,10 +993,11 @@ float luminance(vec3 linearRGB) {
 }
 
 float heliumCurve(float x) {
-    x *= Curve_PrintGamma * Curve_FilmGamma;
     return pow(
-        1.0 + pow(x, -Curve_FilmGamma) / Curve_PrintGamma,
-        -Curve_PrintGamma
+        1.0 - pow(
+            1.0 + x / Curve_FilmGamma,
+            -Curve_FilmGamma
+        ), Curve_DigitalGamma
     );
 }
 
