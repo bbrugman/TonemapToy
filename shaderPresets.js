@@ -90,7 +90,7 @@ float filmCurve(float x) {
         ("linear scan and invert").
         TODO: write something explaining this.
     */
-    return 1.0 - pow(1.0 + x, -HD1890_Gamma);
+    return 1.0 - pow(1.0 + x / HD1890_Gamma, -HD1890_Gamma);
 }
 
 float selectedCurve(float x) {
