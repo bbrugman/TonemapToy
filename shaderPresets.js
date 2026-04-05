@@ -43,7 +43,7 @@ vec3 tonemap(vec3 x) {
 `,
     "Multi":
 `
-uniform int Approach; // options Per-channel Max Luminance "ACES" Godot_AgX
+uniform int Approach; // options Per-channel Max Luminance "ACES" ~Blender_AgX
 uniform int Curve; // options Clamp Exponential Reinhard Hable FilmPrint
 uniform float InContrast; // logrange min=0.1 max=10.0 default=1.0
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
@@ -123,7 +123,7 @@ vec3 luminanceScale(vec3 x) {
     float targetLum = selectedCurve(lum);
     x *= targetLum / lum;
     /*
-        Luminance-based tonemapping is often said to "preserve hue",
+        Luminance-based scaling is often said to "preserve hue"[1],
         but the above scaled color can easily have channel values above
         one, even if the curve itself is bounded by one.
         Therefore "hue" in the sense of channel ratios is not actually
@@ -135,12 +135,11 @@ vec3 luminanceScale(vec3 x) {
 vec3 pseudoAces(vec3 x) {
     /*
         In the video game industry, many use the words "ACES tonemapping"
-        or "ACES Filmic" to refer to some kind of approximation to the
-        ACES 1 sRGB Output Transform. 
-        This often means applying a curve per-channel in per-channel in
-        (approximate) linear AP1 rather than in linearized display space,
+        or "ACES Filmic" to refer to (some kind of approximation to) the
+        ACES 1.x sRGB Output Transform.
+        This often means applying a curve per-channel in (approximate)
+        linear AP1 rather than in linearized display space,
         skipping all other RRT and ODT steps.
-
     */
     const mat3 Rec709_to_AP1 = mat3(
         0.613164477, 0.339466431, 0.047369092,
@@ -156,9 +155,11 @@ vec3 pseudoAces(vec3 x) {
     return x;
 }
 
-vec3 godotAgX(vec3 x) {
+vec3 blenderAgX(vec3 x) {
     /*
-        Godot's "AgX" mode uses the Blender AgX matrices.
+        AgX using the Blender AgX matrices.
+        This is a "pure" AgX, skipping the Blender additions,
+        as in Godot.
     */
     const mat3 Rec709_to_AgX = mat3(
         0.544814746488245, 0.140416948464053, 0.0888104196149096,
@@ -184,7 +185,7 @@ vec3 tonemap(vec3 x) {
     if (Approach == APPROACH_MAX) return maxScale(x);
     if (Approach == APPROACH_LUMINANCE) return luminanceScale(x);
     if (Approach == APPROACH_ACES) return pseudoAces(x);
-    if (Approach == APPROACH_GODOT_AGX) return godotAgX(x);
+    if (Approach == APPROACH_BLENDER_AGX) return blenderAgX(x);
 }
 `,
     "Unreal Engine":
