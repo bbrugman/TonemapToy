@@ -44,7 +44,7 @@ vec3 tonemap(vec3 x) {
     "Multi":
 `
 uniform int Approach; // options Per-channel Max Luminance "ACES" Godot_AgX
-uniform int Curve; // options Clamp Exponential Reinhard Hable Filmic_(H&D1890)
+uniform int Curve; // options Clamp Exponential Reinhard Hable FilmPrint
 uniform float InContrast; // logrange min=0.1 max=10.0 default=1.0
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
@@ -53,7 +53,8 @@ uniform float Hable_C; // logrange min=0.01 max=2.0 default=0.10
 uniform float Hable_D; // logrange min=0.01 max=2.0 default=0.20
 uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
 uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
-uniform float HD1890_Gamma; // logrange min=0.1 max=10.0 default=0.65
+uniform float FilmPrint_NegativeGamma; // logrange min=0.1 max=10.0 default=0.65
+uniform float FilmPrint_PrintGamma; // logrange min=0.1 max=10.0 default=3.5
 
 #define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))
 
@@ -82,15 +83,12 @@ float hableCurve(float x) {
     return min(1.0, ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F);
 }
 
-float filmCurve(float x) {
+float filmPrintCurve(float x) {
     /*
-        The result of taking the film density curve derived by Hurter & Driffield (1890),
-        letting plate transparency go to zero,
-        and converting from "optical density" to one minus transparency
-        ("linear scan and invert").
+        Derived from the film curve equation given by Hurter & Driffield (1890).
         TODO: write something explaining this.
     */
-    return 1.0 - pow(1.0 + x / HD1890_Gamma, -HD1890_Gamma);
+    return pow(1.0 + pow(x / FilmPrint_NegativeGamma, -FilmPrint_NegativeGamma) / FilmPrint_PrintGamma, -FilmPrint_PrintGamma);
 }
 
 float selectedCurve(float x) {
@@ -100,7 +98,7 @@ float selectedCurve(float x) {
     if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
     if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
-    if (Curve == CURVE_FILMIC_HD1890) return filmCurve(x) / filmCurve(WhiteClip);
+    if (Curve == CURVE_FILMPRINT) return filmPrintCurve(x) / filmPrintCurve(WhiteClip);
 }
 
 float luminance(vec3 linearRGB) {
