@@ -10,7 +10,7 @@ export default {
                 controlSpec: {
                     label: "Sky Color",
                     type: CS.ControlType.COLOR,
-                    value: "#00a2ff"
+                    value: "#3681e2"
                 }
             },
             {
@@ -39,7 +39,7 @@ export default {
                 controlSpec: {
                     label: "Light Color",
                     type: CS.ControlType.COLOR,
-                    value: "#ff3300"
+                    value: "#ff0000"
                 }
             },
             {
