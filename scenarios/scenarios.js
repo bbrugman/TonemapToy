@@ -144,10 +144,6 @@ vec3 _dynamic_image() {
         shaderFragment: `
 #define _DYNAMIC_IMAGE 1
 
-float _tent(float x) {
-    return 1. - abs(x);
-}
-
 vec3 _dynamic_image() {
     vec3 x = texture(_tex, _uv).rgb;
     return mix(x, x.brg, _rotateMix);
