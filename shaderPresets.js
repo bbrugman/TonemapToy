@@ -976,7 +976,12 @@ vec3 tonemap(vec3 x) {
 `,
     "Helium":
 `
-// https://github.com/bbrugman/Helium-Tonemapper
+/*
+    A smooth luminance mapper I developed.
+    The idea is to scale the input smoothly to within the output cube,
+    then move the result towards peak white depending on how much
+    luminance is left unaccounted for by the initial scaling.
+*/
 
 uniform float Curve_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
 uniform float Curve_DigitalGamma; // logrange min=0.1 max=10.0 default=1.2
