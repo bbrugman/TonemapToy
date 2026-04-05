@@ -91,6 +91,41 @@ vec3 _dynamic_image() {
 `.trim()
     },
 
+    "Checker": {
+        imageUrl: new URL("Checker.exr", import.meta.url),
+        uniforms: [
+            {
+                name: "_hue",
+                type: "float",
+                controlSpec: {
+                    label: "Saturated Hue",
+                    type: CS.ControlType.RANGE,
+                    min: 0,
+                    max: 360,
+                    value: 0
+                }
+            }
+        ],
+        shaderFragment: `
+#define _DYNAMIC_IMAGE 1
+
+vec3 _hueColor(float hue) {
+    float x = hue / 60.;
+    float r = abs(x - 3.) - 1.;
+    float g = 2. - abs(x - 2.);
+    float b = 2. - abs(x - 4.);
+    return min(max(vec3(r, g, b), 0.0), 1.0);
+}
+
+vec3 _dynamic_image() {
+    vec3 x = texture(_tex, _uv).rgb;
+    float sat = x.r - x.g;
+    float desat = x.g;
+    return vec3(desat) + sat * _hueColor(_hue);
+}
+`.trim()
+    },
+
     "Shelf": {
         imageUrl: new URL("Shelf.exr", import.meta.url),
         uniforms: [
