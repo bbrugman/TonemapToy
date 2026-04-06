@@ -126,6 +126,42 @@ vec3 _dynamic_image() {
 `.trim()
     },
 
+    "Two Colors": {
+                imageUrl: new URL("TwoColors.exr", import.meta.url),
+        uniforms: [
+            {
+                name: "_col1",
+                type: "vec3",
+                controlSpec: {
+                    label: "Color 1",
+                    type: CS.ControlType.COLOR,
+                    value: "#0080ff"
+                }
+            },
+            {
+                name: "_col2",
+                type: "vec3",
+                controlSpec: {
+                    label: "Color 2",
+                    type: CS.ControlType.COLOR,
+                    value: "#ff8000"
+                }
+            },
+        ],
+        shaderFragment: `
+#define _DYNAMIC_IMAGE 1
+
+vec3 _dynamic_image() {
+    vec3 x = texture(_tex, _uv).rgb;
+    return mat3(
+        _col1,
+        _col2,
+        vec3(0.0)
+    ) * x;
+}
+`.trim()
+    },
+
     "Shelf": {
         imageUrl: new URL("Shelf.exr", import.meta.url),
         uniforms: [
