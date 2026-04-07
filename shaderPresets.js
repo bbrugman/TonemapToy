@@ -1062,7 +1062,7 @@ vec3 tonemap(vec3 x) {
     return scaled + (missingLum / toWhiteLum) * toWhite;
 }
 `,
-    "AgX~":
+    "~AgX":
 `
 /*
     AgX as in
