@@ -104,6 +104,17 @@ vec3 _dynamic_image() {
                     max: 360,
                     value: 0
                 }
+            },
+             {
+                name: "_saturation",
+                type: "float",
+                controlSpec: {
+                    label: "Saturation",
+                    type: CS.ControlType.RANGE,
+                    min: 0,
+                    max: 1,
+                    value: 1
+                }
             }
         ],
         shaderFragment: `
@@ -119,9 +130,15 @@ vec3 _hueColor(float hue) {
 
 vec3 _dynamic_image() {
     vec3 x = texture(_tex, _uv).rgb;
-    float sat = x.r - x.g;
-    float desat = x.g;
-    return vec3(desat) + sat * _hueColor(_hue);
+    float satPart = x.r - x.g;
+    float desatPart = x.g;
+    vec3 satColor = _hueColor(_hue);
+    satColor = mix(
+        vec3(dot(satColor, vec3(0.2126, 0.7125, 0.0722))),
+        satColor,
+        _saturation
+    );
+    return vec3(desatPart) + satPart * satColor;
 }
 `.trim()
     },
