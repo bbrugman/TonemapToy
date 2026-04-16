@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const glState = initGLState(canvas);
 
     let uniformData = null;
-    let scenario = null;
+    let scenario = scenarios[INITIAL_SCENARIO];
 
     const uniformControls = document.getElementById("uniform-controls");
     const staticControls = document.getElementById("static-controls");
@@ -196,7 +196,13 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const scenarioControls = document.getElementById("scenario-controls");
 
     function updateScenario() {
-        updateImageFromURL(scenario.imageUrl, glState, canvas);
+        if (scenario.imageUrl) {
+            updateImageFromURL(scenario.imageUrl, glState, canvas);
+        } else {
+            // remove scenario image from view
+            glState.glContext.deleteTexture(glState.texture);
+            glState.texture = null;
+        }
         updateShaderAndUI();
     }
 
@@ -229,27 +235,44 @@ document.addEventListener("DOMContentLoaded", (e) => {
         let scenarioFragments = [];
 
         scenarioControls.innerHTML = "";
-        if (scenario !== null) {
-            for (const scenarioUniform of scenario.uniforms) {
-                // add uniform definition
-                scenarioFragments.push(`uniform ${scenarioUniform.type} ${scenarioUniform.name};`);
-                // create scenario UI
-                const controlSpec = Object.assign({}, scenarioUniform.controlSpec);
-                if (scenarioUniform.name in prevUniformValues) {
-                    const prevValue = prevUniformValues[scenarioUniform.name].value;
-                    controlSpec.value = CS.outToIn(controlSpec.type, prevValue);
-                }
-                const control = CS.createControl(controlSpec);
-                scenarioControls.appendChild(control.element);
-                // add scenario uniforms to uniform data (without control info)
-                uniformData.push({
-                    name: scenarioUniform.name,
-                    type: scenarioUniform.type,
-                    getValue: control.getValue
-                });
-            }
-            scenarioFragments.push(scenario.shaderFragment);
+
+        if (scenario.imageUrl === undefined) {
+            // image load for scenarios without associated images
+            const fileInput = document.createElement("input");
+            fileInput.setAttribute("type", "file");
+            fileInput.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    return;
+                }   
+                const reader = new FileReader();
+                reader.onload = () => {
+                    updateImageFromEXRBuffer(glState, reader.result, canvas);
+                };
+                reader.readAsArrayBuffer(file);
+            });
+            scenarioControls.appendChild(uiC.labelDiv("EXR image file", fileInput));
         }
+
+        for (const scenarioUniform of scenario.uniforms) {
+            // add uniform definition
+            scenarioFragments.push(`uniform ${scenarioUniform.type} ${scenarioUniform.name};`);
+            // create scenario UI
+            const controlSpec = Object.assign({}, scenarioUniform.controlSpec);
+            if (scenarioUniform.name in prevUniformValues) {
+                const prevValue = prevUniformValues[scenarioUniform.name].value;
+                controlSpec.value = CS.outToIn(controlSpec.type, prevValue);
+            }
+            const control = CS.createControl(controlSpec);
+            scenarioControls.appendChild(control.element);
+            // add scenario uniforms to uniform data (without control info)
+            uniformData.push({
+                name: scenarioUniform.name,
+                type: scenarioUniform.type,
+                getValue: control.getValue
+            });
+        }
+        scenarioFragments.push(scenario.shaderFragment);
 
         const scenarioFragment = scenarioFragments.join("\n");
 
@@ -312,27 +335,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
     });
     add(staticControls, "Scenario", scenarioSelect);
 
-    const fileInput = document.createElement("input");
-    fileInput.setAttribute("type", "file");
-    fileInput.addEventListener("change", (e) => {
-        if (scenario !== null) {
-            scenario = null;
-            updateShaderAndUI();
-        }
-
-        const file = e.target.files[0];
-        if (!file) {
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            updateImageFromEXRBuffer(glState, reader.result, canvas);
-        };
-        reader.readAsArrayBuffer(file);
-    });
-    staticControls.appendChild(uiC.labelDiv("EXR image file", fileInput));
-
     const exposureControl = uiC.createRangeControl(-10, 15, 0);
     exposureControl.element.setAttribute("step", 0.1);
     let exposureDiv = add(staticControls, "Exposure", exposureControl);
@@ -363,7 +365,6 @@ document.addEventListener("DOMContentLoaded", (e) => {
 
     // run
     THREE.Cache.enabled = true;
-    scenario = scenarios[INITIAL_SCENARIO];
     updateScenario();
     requestAnimationFrame(update);
 });

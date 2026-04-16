@@ -37,15 +37,8 @@ vec3 _ieotf(vec3 x) {
 }
 
 void main() {
-    #ifndef _DYNAMIC_IMAGE
-        vec3 x = texture(_tex, _uv).rgb;
-        x = max(x, 0.0);
-    #else
-        vec3 x = _dynamic_image();
-        x = max(x, 0.0);
-    #endif
-
-    vec3 tonemapped = tonemap(_exposure * x);
+    // _preTonemap() is defined by scenario
+    vec3 tonemapped = tonemap(_exposure * _preTonemap());
 
     if (_showClamp) {
         if (
