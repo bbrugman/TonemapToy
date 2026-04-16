@@ -21,20 +21,19 @@ out vec4 _outputColor;
 uniform sampler2D _tex;
 uniform float _exposure;
 uniform bool _showClamp;
-uniform bool _pureGammaEncode;
+uniform int _eotf;
 `.trimStart();
 
 export const fragmentShaderFooter = `
-vec3 _sRgbIeotf(vec3 x) {
+vec3 _ieotf(vec3 x) {
     // See https://community.acescentral.com/t/srgb-piece-wise-eotf-vs-pure-gamma/4024
-    if (_pureGammaEncode) {
-        return pow(x, vec3(1.0 / 2.2));
-    }
-    return mix(
+    if (_eotf == 1) return mix(
         1.055 * pow(x, vec3(1.0 / 2.4)) - 0.055,
         12.92 * x,
         vec3(lessThan(x, vec3(0.0031308)))
     );
+    
+    return pow(x, vec3(1.0 / 2.2));
 }
 
 void main() {
@@ -54,6 +53,6 @@ void main() {
             || max(tonemapped.r, max(tonemapped.g, tonemapped.b)) > 1.0001
         ) tonemapped = vec3(1.0, 0.0, 1.0);
     }
-    _outputColor = vec4(_sRgbIeotf(clamp(tonemapped, 0.0, 1.0)), 1.0);
+    _outputColor = vec4(_ieotf(clamp(tonemapped, 0.0, 1.0)), 1.0);
 }
 `.trimStart();

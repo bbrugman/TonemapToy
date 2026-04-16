@@ -273,7 +273,7 @@ document.addEventListener("DOMContentLoaded", (e) => {
         gl.uniform1i(gl.getUniformLocation(program, "_tex"), 0);
         gl.uniform1f(gl.getUniformLocation(program, "_exposure"), Math.pow(2, exposureControl.getValue()));
         gl.uniform1i(gl.getUniformLocation(program, "_showClamp"), showClampControl.getValue());
-        gl.uniform1i(gl.getUniformLocation(program, "_pureGammaEncode"), encodingControl.getValue());
+        gl.uniform1i(gl.getUniformLocation(program, "_eotf"), eotfControl.getValue());
 
         for (const uniform of uniformData) {
             const uniformLoc = gl.getUniformLocation(program, uniform.name);
@@ -341,8 +341,8 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const showClampControl = uiC.createLabeledCheckboxControl("Mark clamped regions");
     staticControls.appendChild(showClampControl.element);
 
-    const encodingControl = uiC.createLabeledCheckboxControl("Encode in gamma 2.2", true);
-    staticControls.appendChild(encodingControl.element);
+    const eotfControl = uiC.createSelectorControl(["Gamma 2.2 (sRGB reference display)", "sRGB piecewise"]);
+    add(staticControls, "Assumed display EOTF", eotfControl);
 
     const presetSelect = uiC.createSelectorControl(Object.keys(shaderPresets), Object.keys(shaderPresets), INITIAL_SHADER_PRESET);
     presetSelect.element.addEventListener("change", (e) => {
