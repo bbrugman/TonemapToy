@@ -974,94 +974,6 @@ vec3 tonemap(vec3 x) {
     return applyHuePreservingShoulder(x);
 }
 `,
-    "Helium":
-`
-/*
-    A smooth luminance mapper I developed.
-    The idea is to scale the input smoothly to within the output cube,
-    then move the result towards peak white depending on how much
-    luminance is left unaccounted for by the initial scaling.
-*/
-
-uniform float Curve_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
-uniform float Curve_DigitalGamma; // logrange min=0.1 max=10.0 default=1.2
-uniform float IISNorm; // range min=0.0 max=1.0 default=0.0
-uniform int ClampMode; // options Length_Smooth Max_Smooth Max_Hard
-uniform float ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
-uniform bool AbneyComp; // default=1
-
-float luminance(vec3 linearRGB) {
-    // Assuming Rec. 709 primaries
-    const vec3 luminanceCoefs = vec3(0.2126, 0.7125, 0.0722);
-    return dot(luminanceCoefs, linearRGB);
-}
-
-float heliumCurve(float x) {
-    return pow(
-        1.0 - pow(
-            1.0 + x / Curve_FilmGamma,
-            -Curve_FilmGamma
-        ), Curve_DigitalGamma
-    );
-}
-
-vec3 tonemap(vec3 x) {
-    const vec3 white = vec3(1.0);
-
-    float lum = luminance(x);
-    float targetLum = heliumCurve(lum);
-
-    // Scale input norm
-    float l2 = length(x);
-    float norm = mix(lum, l2, IISNorm);
-    float scale = heliumCurve(norm) / norm;
-    // Don't exceed target luminance
-    // (if curve has concave upwards section)
-    scale = min(targetLum / lum, scale);
-
-    // Constrain to output cube
-    float clampNorm;
-    if (ClampMode == CLAMPMODE_LENGTH_SMOOTH) {
-        clampNorm = scale * l2;
-    } else {
-        clampNorm = scale * max(x.r, max(x.g, x.b));
-    }
-    float clampedNorm;
-    if (ClampMode != CLAMPMODE_MAX_HARD) {
-        float p = pow(clampNorm, 1.0 / ClampSmoothness);
-        clampedNorm = pow(p / (1.0 + p), ClampSmoothness);
-    } else {
-        clampedNorm = min(1.0, clampNorm);
-    }
-    scale *= clampedNorm / clampNorm;
-    vec3 scaled = scale * x;
-
-    // Calculate target luminance not accounted for by scaled input
-    float scaledLum = scale * lum;
-    float missingLum = targetLum - scaledLum;
-    vec3 toWhite = white - scaled;
-    float toWhiteLum = 1.0 - scaledLum;
-
-    if (AbneyComp) {
-        // ad hoc Abney effect compensation
-        vec3 abneyComp = vec3(
-            0.6 * scaled.g * pow(1.0 - scaled.b, 4.0),
-            0.7 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
-            + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
-            0.0
-        );
-        scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
-        // Recalculate luminance unaccounted for
-        scaledLum = luminance(scaled);
-        missingLum = targetLum - scaledLum;
-        toWhite = white - scaled;
-        toWhiteLum = 1.0 - scaledLum;
-    }
-
-    // Move towards white for missing luminance
-    return scaled + (missingLum / toWhiteLum) * toWhite;
-}
-`,
     "~AgX":
 `
 /*
@@ -1177,6 +1089,94 @@ vec3 tonemap(vec3 x) {
     x = x * inset;
     x = curve(x);
     return x * outset;
+}
+`,
+    "Helium":
+`
+/*
+    A smooth luminance mapper I developed.
+    The idea is to scale the input smoothly to within the output cube,
+    then move the result towards peak white depending on how much
+    luminance is left unaccounted for by the initial scaling.
+*/
+
+uniform float Curve_FilmGamma; // logrange min=0.1 max=10.0 default=0.65
+uniform float Curve_DigitalGamma; // logrange min=0.1 max=10.0 default=1.2
+uniform float IISNorm; // range min=0.0 max=1.0 default=0.0
+uniform int ClampMode; // options Length_Smooth Max_Smooth Max_Hard
+uniform float ClampSmoothness; // logrange min=0.1 max=2.0 default=0.4
+uniform bool AbneyComp; // default=1
+
+float luminance(vec3 linearRGB) {
+    // Assuming Rec. 709 primaries
+    const vec3 luminanceCoefs = vec3(0.2126, 0.7125, 0.0722);
+    return dot(luminanceCoefs, linearRGB);
+}
+
+float heliumCurve(float x) {
+    return pow(
+        1.0 - pow(
+            1.0 + x / Curve_FilmGamma,
+            -Curve_FilmGamma
+        ), Curve_DigitalGamma
+    );
+}
+
+vec3 tonemap(vec3 x) {
+    const vec3 white = vec3(1.0);
+
+    float lum = luminance(x);
+    float targetLum = heliumCurve(lum);
+
+    // Scale input norm
+    float l2 = length(x);
+    float norm = mix(lum, l2, IISNorm);
+    float scale = heliumCurve(norm) / norm;
+    // Don't exceed target luminance
+    // (if curve has concave upwards section)
+    scale = min(targetLum / lum, scale);
+
+    // Constrain to output cube
+    float clampNorm;
+    if (ClampMode == CLAMPMODE_LENGTH_SMOOTH) {
+        clampNorm = scale * l2;
+    } else {
+        clampNorm = scale * max(x.r, max(x.g, x.b));
+    }
+    float clampedNorm;
+    if (ClampMode != CLAMPMODE_MAX_HARD) {
+        float p = pow(clampNorm, 1.0 / ClampSmoothness);
+        clampedNorm = pow(p / (1.0 + p), ClampSmoothness);
+    } else {
+        clampedNorm = min(1.0, clampNorm);
+    }
+    scale *= clampedNorm / clampNorm;
+    vec3 scaled = scale * x;
+
+    // Calculate target luminance not accounted for by scaled input
+    float scaledLum = scale * lum;
+    float missingLum = targetLum - scaledLum;
+    vec3 toWhite = white - scaled;
+    float toWhiteLum = 1.0 - scaledLum;
+
+    if (AbneyComp) {
+        // ad hoc Abney effect compensation
+        vec3 abneyComp = vec3(
+            0.6 * scaled.g * pow(1.0 - scaled.b, 4.0),
+            0.7 * scaled.r * (1.0 - 0.7 * targetLum) * pow(1.0 - scaled.b, 4.0)
+            + 0.85 * scaled.b * pow((1.0 - 0.3 * targetLum), 3.0) * pow(1.0 - scaled.r, 5.0),
+            0.0
+        );
+        scaled += abneyComp * (missingLum / toWhiteLum) * toWhite;
+        // Recalculate luminance unaccounted for
+        scaledLum = luminance(scaled);
+        missingLum = targetLum - scaledLum;
+        toWhite = white - scaled;
+        toWhiteLum = 1.0 - scaledLum;
+    }
+
+    // Move towards white for missing luminance
+    return scaled + (missingLum / toWhiteLum) * toWhite;
 }
 `,
 };
