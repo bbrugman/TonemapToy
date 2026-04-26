@@ -43,7 +43,7 @@ vec3 tonemap(vec3 x) {
 `,
     "Multi":
 `
-uniform int Approach; // options Per-channel Max Luminance "ACES" ~Blender_AgX
+uniform int Approach; // options Per-channel Max Luminance Per-channel+HSVHueRestore "ACES" ~Blender_AgX
 uniform int Curve; // options Clamp Exponential Reinhard Hable FilmPrint
 uniform float InContrast; // logrange min=0.1 max=10.0 default=1.0
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
@@ -109,6 +109,14 @@ float luminance(vec3 linearRGB) {
 
 vec3 perChannel(vec3 x) {
     return APPLY(x, selectedCurve);
+}
+
+vec3 perChannelHueRestore(vec3 x) {
+    float max = max(x.r, max(x.g, x.b));
+    float min = min(x.r, min(x.r, x.b));
+    float newMax = selectedCurve(max);
+    float newMin = selectedCurve(min);
+    return (x - min) / (max - min) * (newMax - newMin) + newMin;
 }
 
 vec3 maxScale(vec3 x) {
@@ -184,6 +192,7 @@ vec3 tonemap(vec3 x) {
     if (Approach == APPROACH_PERCHANNEL) return perChannel(x);
     if (Approach == APPROACH_MAX) return maxScale(x);
     if (Approach == APPROACH_LUMINANCE) return luminanceScale(x);
+    if (Approach == APPROACH_PERCHANNELHSVHUERESTORE) return perChannelHueRestore(x);
     if (Approach == APPROACH_ACES) return pseudoAces(x);
     if (Approach == APPROACH_BLENDER_AGX) return blenderAgX(x);
 }
