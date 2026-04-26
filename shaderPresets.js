@@ -93,7 +93,7 @@ float filmPrintCurve(float x) {
 
 float selectedCurve(float x) {
     // Contrast works with any curve
-    x = 0.18 * pow(x / 0.18, InContrast);
+    x = sign(x) * 0.18 * pow(abs(x) / 0.18, InContrast);
     if (Curve == CURVE_CLAMP) return clampCurve(x);
     if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
