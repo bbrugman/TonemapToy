@@ -134,7 +134,7 @@ vec3 perChannel(vec3 x) {
 
 vec3 perChannelHueRestore(vec3 x) {
     float max = max(x.r, max(x.g, x.b));
-    float min = min(x.r, min(x.r, x.b));
+    float min = min(x.r, min(x.g, x.b));
     float newMax = selectedCurve(max);
     float newMin = selectedCurve(min);
     return ((x - min) / (max - min + 0.0001)) * (newMax - newMin) + newMin;
