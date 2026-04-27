@@ -44,7 +44,7 @@ vec3 tonemap(vec3 x) {
     "Multi":
 `
 uniform int Approach; // options Per-channel Max Luminance Per-channel+HSVHueRestore "ACES" ~Blender_AgX
-uniform int Curve; // options Clamp Exponential Reinhard Hable FilmPrint
+uniform int Curve; // options Clamp Exponential Reinhard Hable FilmPrint PiecewiseLCG
 uniform float InContrast; // logrange min=0.1 max=10.0 default=1.0
 uniform float WhiteClip; // logrange min=1.0 max=10000.0 default=32.0
 uniform float Hable_A; // logrange min=0.01 max=2.0 default=0.15
@@ -55,6 +55,9 @@ uniform float Hable_E; // logrange min=0.001 max=2.0 default=0.02
 uniform float Hable_F; // logrange min=0.01 max=2.0 default=0.30
 uniform float FilmPrint_NegativeGamma; // logrange min=0.1 max=10.0 default=0.65
 uniform float FilmPrint_PrintGamma; // logrange min=0.1 max=10.0 default=3.5
+uniform float PiecewiseCompressStart; // range min=0.0 max=1.0 default=0.5
+uniform float PiecewiseCompressContrast; // logrange min=0.1 max=10.0 default=1.0
+uniform float PiecewiseGammaAdjust; // logrange min=0.2 max=5.0 default=1.2
 
 #define APPLY(x, c) vec3(c(x.r), c(x.g), c(x.b))
 
@@ -91,6 +94,23 @@ float filmPrintCurve(float x) {
     return pow(1.0 + pow(x / FilmPrint_NegativeGamma, -FilmPrint_NegativeGamma) / FilmPrint_PrintGamma, -FilmPrint_PrintGamma);
 }
 
+float piecewiseLCG(float x) {
+    /*
+        Linear followed by highlight compression, 
+        into gamma adjustment.
+    */
+    float y = x;
+    if (x > PiecewiseCompressStart) {
+        float h = 1.0 - PiecewiseCompressStart;
+        float modX = (x - PiecewiseCompressStart) / h;
+        y = PiecewiseCompressStart + h * (
+            1.0 - pow(1.0 + modX / PiecewiseCompressContrast, -PiecewiseCompressContrast)
+        );
+    }
+    y = pow(y, PiecewiseGammaAdjust);
+    return y;
+}
+
 float selectedCurve(float x) {
     // Contrast works with any curve
     x = sign(x) * 0.18 * pow(abs(x) / 0.18, InContrast);
@@ -99,6 +119,7 @@ float selectedCurve(float x) {
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
     if (Curve == CURVE_HABLE) return min(1.0, hableCurve(x) / hableCurve(WhiteClip));
     if (Curve == CURVE_FILMPRINT) return filmPrintCurve(x) / filmPrintCurve(WhiteClip);
+    if (Curve == CURVE_PIECEWISELCG) return piecewiseLCG(x) / piecewiseLCG(WhiteClip);
 }
 
 float luminance(vec3 linearRGB) {
