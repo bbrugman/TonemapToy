@@ -343,8 +343,12 @@ document.addEventListener("DOMContentLoaded", (e) => {
     const showClampControl = uiC.createLabeledCheckboxControl("Mark clamped regions");
     staticControls.appendChild(showClampControl.element);
 
-    const eotfControl = uiC.createSelectorControl(["Gamma 2.2 (sRGB reference display)", "sRGB piecewise"]);
-    add(staticControls, "Assumed display EOTF", eotfControl);
+    const eotfControl = uiC.createSelectorControl([
+        "Gamma 2.2 (sRGB reference display)",
+        "sRGB piecewise",
+        "None"
+    ]);
+    add(staticControls, "Inverse display EOTF applied", eotfControl);
 
     const presetSelect = uiC.createSelectorControl(Object.keys(shaderPresets), Object.keys(shaderPresets), INITIAL_SHADER_PRESET);
     presetSelect.element.addEventListener("change", (e) => {

@@ -26,13 +26,14 @@ uniform int _eotf;
 
 export const fragmentShaderFooter = `
 vec3 _ieotf(vec3 x) {
+    if (_eotf == 2) return x;
+
     // See https://community.acescentral.com/t/srgb-piece-wise-eotf-vs-pure-gamma/4024
     if (_eotf == 1) return mix(
         1.055 * pow(x, vec3(1.0 / 2.4)) - 0.055,
         12.92 * x,
         vec3(lessThan(x, vec3(0.0031308)))
     );
-    
     return pow(x, vec3(1.0 / 2.2));
 }
 
