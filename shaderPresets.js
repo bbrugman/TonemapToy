@@ -112,8 +112,9 @@ float piecewiseLCG(float x) {
 }
 
 float selectedCurve(float x) {
+    x = min(x, 0.0);
     // Contrast works with any curve
-    x = sign(x) * 0.18 * pow(abs(x) / 0.18, InContrast);
+    x = 0.18 * pow(x / 0.18, InContrast);
     if (Curve == CURVE_CLAMP) return clampCurve(x);
     if (Curve == CURVE_EXPONENTIAL) return min(1.0, exponentialCurve(x) / exponentialCurve(WhiteClip));
     if (Curve == CURVE_REINHARD) return min(1.0, reinhardCurve(x) / reinhardCurve(WhiteClip));
@@ -166,8 +167,8 @@ vec3 pseudoAces(vec3 x) {
         In the video game industry, many use the words "ACES tonemapping"
         or "ACES Filmic" to refer to (some kind of approximation to) the
         ACES 1.x sRGB Output Transform.
-        This often means applying a curve per-channel in (approximate)
-        linear AP1 rather than in linearized display space,
+        This sometimes means (e.g. in Godot) applying a curve per-channel
+        in (approximate) linear AP1 rather than in linearized display space,
         skipping all other RRT and ODT steps.
     */
     const mat3 Rec709_to_AP1 = mat3(
