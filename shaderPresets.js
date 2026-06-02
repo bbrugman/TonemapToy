@@ -112,7 +112,7 @@ float piecewiseLCG(float x) {
 }
 
 float selectedCurve(float x) {
-    x = min(x, 0.0);
+    x = max(x, 0.0);
     // Contrast works with any curve
     x = 0.18 * pow(x / 0.18, InContrast);
     if (Curve == CURVE_CLAMP) return clampCurve(x);
