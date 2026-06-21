@@ -97,7 +97,7 @@ float filmPrintCurve(float x) {
 float piecewiseLCG(float x) {
     /*
         Linear followed by highlight compression, 
-        into gamma adjustment.
+        into a power for shadow contrast.
     */
     float y = x;
     if (x > PiecewiseCompressStart) {
