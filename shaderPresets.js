@@ -322,7 +322,7 @@ const float RRT_RED_HUE = 0.;
 const float RRT_RED_WIDTH = 135.;
 
 uniform float UE_ExpandGamut; // range default=1.0 min=0.0 max=1.0
-uniform float UE_BlueCorrection; // range default=1.0 min=0.0 max=1.0
+uniform float UE_BlueCorrection; // range default=0.6 min=0.0 max=1.0
 uniform bool ACES_RRT_GlowModule; // default=1
 uniform bool ACES_RRT_RedModule; // default=1
 uniform bool ACES_RRT_Desaturate; // default=1
