@@ -3,5 +3,5 @@ vec3 tonemap(vec3 rgb) {
     float mn = min(rgb.r, min(rgb.g, rgb.b));
     float newMax = toneCurve(mx);
     float newMin = toneCurve(mn);
-    return ((x - mn) / (mx - mn + 0.0001)) * (newMax - newMin) + newMin;
+    return ((rgb - mn) / (mx - mn + 0.0001)) * (newMax - newMin) + newMin;
 }
