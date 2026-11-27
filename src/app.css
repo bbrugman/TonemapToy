@@ -54,6 +54,7 @@ h1 {
     overflow-y: auto;
     overflow-x: hidden;
     padding-left: 1rem;
+    padding-bottom: 2rem;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -64,7 +65,7 @@ h1 {
 #controls > section {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;   /* children keep their intrinsic width */
+    align-items: flex-start;
     gap: 10px;
 }
 
